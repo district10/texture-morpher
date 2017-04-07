@@ -5,6 +5,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="user-scalable=no, initial-scale=1">
     <link rel="stylesheet" href="css/jquery-ui.min.css" type="text/css" />
+    <link rel="stylesheet" href="css/dat-gui-light-theme.css" type="text/css" />
+    <link rel="stylesheet" href="css/toastr.min.css" type="text/css" />
     <style>
         body {
             overflow: hidden;
@@ -14,28 +16,48 @@
             position: absolute;
             width: 800px;
             height: 600px;
-            left: 75%; top: 50%;
+            left: 75%;
+            top: 50%;
             transform:translate(-100%, -50%);
         }
         .sidebar {
-            border: 1px solid red;
             position: absolute;
-            width: 200px; height: 600px;
-            left: 75%; top: 50%;
+            width: 200px;
+            height: 600px;
+            left: 75%;
+            top: 50%;
             transform:translate(0, -50%);
         }
-        .tab {
+        .tab, ._tab {
             width: 95%;
             height: 88%;
         }
-        .image, #canvas {
-            max-width: 100%;
-            max-height: 100%;
+        .image {
+            // max-width: 100%; max-height: 100%;
         }
         #canvas {
             border: 1px solid red;
-            width: 100%;
-            height: 100%;
+        }
+        button.new-image {
+            padding: 2px 6px;
+            position: absolute;
+            top: 80px;
+            left: 40px;
+            -webkit-transition: opacity 0.8s ease-in-out;
+            -o-transition: opacity 0.8s ease-in-out;
+            transition: opacity 0.8s ease-in-out;
+            opacity: 0.25;
+        }
+        button.new-image:hover {
+            opacity: 1;
+            cursor: pointer !important;
+        }
+        #tabs-2, #tabs-3, #tabs-4 { overflow: auto; }
+        #tabs-5 canvas { cursor: pointer !important; }
+        .gui {
+            position: absolute;
+            top: 62px;
+            right: 21px;
         }
     </style>
     <script src="js/jquery.min.js"></script>
@@ -54,28 +76,33 @@
     <li><a href="#tabs-3">Image2</a></li>
     <li><a href="#tabs-4">Canvas</a></li>
     <li><a href="#tabs-5">Sphere</a></li></ul>
-    <div id="tabs-1" class="tab"></div>
+    <div id="tabs-1" class="_tab"></div>
     <div id="tabs-2" class="tab">
-        <a title="Image1" href="images/texture1.jpg" target="_blank"><img id="image1" class="image" src="images/texture1.jpg"></a>
+        <img id="image1" class="image" src="images/texture1.jpg" alt="image1" />
     </div>
     <div id="tabs-3" class="tab">
-        <a title="Image2" href="images/texture2.jpg" target="_blank"><img id="image2" class="image" src="images/texture1.jpg"></a>
+        <img id="image2" class="image" src="images/texture2.jpg" alt="image2" />
     </div>
     <div id="tabs-4" class="tab">
         <canvas id="canvas"></canvas>
     </div>
     <div id="tabs-5" class="tab"></div>
 </div>
-</div>
 <div class="sidebar"></div>
 
+<script src="js/d3.v4.min.js"></script>
+<script src="js/dat.gui.min.js"></script>
 <script src="js/three.js"></script>
 <script src="js/DeviceOrientationControls.js"></script>
+<script src="js/OrbitControls.js"></script>
 <script src="js/tween.min.js"></script>
+<script src="js/toastr.min.js"></script>
 
 <script>
     "use strict";
     var Config = function() {
+        var _this = this;
+        this.a = this.b = this.c = $.noop;
     };
     var config = new Config();
 
@@ -85,95 +112,275 @@
     var $canvas = $("#canvas");
     var $sphere = $("#tabs-5");
 
-    $(function(){
-        // sphere
-        (function(){
-            // canvas
-            var ctx = $canvas[0].getContext('2d');
-            ctx.drawImage($image1[0],0,0, 512, 256);
-            $canvas.width(512);
-            $canvas.height(256);
-            /*
-            $canvas.width($image1[0].naturalWidth);
-            $canvas.height($image1[0].naturalHeight);
-            */
+    $canvas[0].width = 1024;
+    $canvas[0].height = 512;
 
-            var texture = new THREE.Texture( undefined, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping );
-            texture.image = $canvas[0];
-            var material = new THREE.MeshBasicMaterial( { map: texture } );
-            var geometry = new THREE.SphereGeometry( 500, 64, 32 ); geometry.scale( - 1, 1, 1 );
-            var mesh = new THREE.Mesh( geometry, material );
-            var scene = new THREE.Scene();
-            scene.add( mesh );
+    var ctx = $canvas[0].getContext('2d');
+    var image1 = new Image(); image1.src = "images/texture1.jpg";
+    var image2 = new Image(); image2.src = "images/texture2.jpg";
 
-            var width = $sphere.width();
-            var height = $sphere.height();
-            var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
+    var draw1Image = function(image) {
+        ctx.clearRect( 0, 0, image.width, image.height );
+        ctx.drawImage(image, 0, 0);
+        $canvas[0].width = image.naturalWidth;
+        $canvas[0].height = image.naturalHeight;
+        config.sphere.applyCanvasTexture();
+    };
 
+    var draw1 = function() { draw1Image($image1[0]); };
+    var draw2 = function() { draw1Image($image2[0]); };
+
+    (function (){
+        var texture = new THREE.Texture( $canvas[0], THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping ); texture.needsUpdate = true;
+        var materials = [
+            new THREE.MeshBasicMaterial( { map: texture } ),
+            new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'images/texture1.jpg' ) } )
+        ];
+        var matIndex = 1;
+        // var material = material[matIndex];
+        var material = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'images/texture1.jpg' ) } );
+        var geometry = new THREE.SphereGeometry( 500, 64, 32 ); geometry.scale( - 1, 1, 1 );
+        var mesh = new THREE.Mesh( geometry, material );
+        var scene = new THREE.Scene();
+        scene.add( mesh );
+
+        var width = $sphere.width();
+        var height = $sphere.height();
+        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
+        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+        $sphere[0].appendChild(renderer.domElement);
+
+        camera.isUserInteracting = false;
+        camera.lon = camera.lat = 0;
+        camera.onPointerDownPointerX = 0;
+        camera.onPointerDownPointerY = 0;
+        camera.onPointerDownLon = 0;
+        camera.onPointerDownLat = 0;
+        camera.target = new THREE.Vector3( 0, 0, 0 );
+
+        renderer.domElement.addEventListener( 'mousedown', function(event) {
+            camera.isUserInteracting = true;
+            camera.onPointerDownPointerX = event.clientX;
+            camera.onPointerDownPointerY = event.clientY;
+            camera.onPointerDownLon = camera.lon;
+            camera.onPointerDownLat = camera.lat;
+        }, false );
+        renderer.domElement.addEventListener( 'mousemove', function(event) {
+            if ( camera.isUserInteracting === true ) {
+                camera.lon = ( camera.onPointerDownPointerX - event.clientX ) * 0.1 + camera.onPointerDownLon;
+                camera.lat = ( event.clientY - camera.onPointerDownPointerY ) * 0.1 + camera.onPointerDownLat;
+            }
+        }, false );
+        renderer.domElement.addEventListener( 'mouseup', function(event) {
             camera.isUserInteracting = false;
-            camera.lon = camera.lat = 0;
-            camera.onPointerDownPointerX = 0;
-            camera.onPointerDownPointerY = 0;
-            camera.onPointerDownLon = 0;
-            camera.onPointerDownLat = 0;
-            camera.target = new THREE.Vector3( 0, 0, 0 );
+        }, false );
 
-            var renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio( window.devicePixelRatio );
-            renderer.setSize(width, height);
-            // renderer.domElement.style.position = 'absolute'; renderer.domElement.style.top = 0;
-            $sphere[0].appendChild(renderer.domElement);
-            renderer.domElement.addEventListener( 'mousedown', function(event) {
-                event.preventDefault();
-                camera.isUserInteracting = true;
-                camera.onPointerDownPointerX = event.clientX;
-                camera.onPointerDownPointerY = event.clientY;
-                camera.onPointerDownLon = camera.lon;
-                camera.onPointerDownLat = camera.lat;
-            }, false );
-            renderer.domElement.addEventListener( 'mousedown', function(event) {
-                event.preventDefault();
-                camera.isUserInteracting = true;
-                camera.onPointerDownPointerX = event.clientX;
-                camera.onPointerDownPointerY = event.clientY;
-                camera.onPointerDownLon = camera.lon;
-                camera.onPointerDownLat = camera.lat;
-            }, false );
-            renderer.domElement.addEventListener( 'mouseup', function(event) {
-                camera.isUserInteracting = false;
-            }, false );
+        var animate = function() {
+            window.requestAnimationFrame(animate);
+            if (camera.lon > 360) { camera.lon -= 360; }
+            if (camera.lon <   0) { camera.lon += 360; }
+            camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
+            var phi = THREE.Math.degToRad( 90 - camera.lat );
+            var theta = THREE.Math.degToRad( camera.lon );
+            camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+            camera.target.y = 500 * Math.cos( phi );
+            camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+            camera.lookAt( camera.target.add(camera.position) );
+            renderer.render(scene, camera);
+        };
 
-            var animate = function() {
-                window.requestAnimationFrame(animate);
-                var phi = THREE.Math.degToRad( 90 - camera.lat );
-                var theta = THREE.Math.degToRad( camera.lon );
-                camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
-                camera.target.y = 500 * Math.cos( phi );
-                camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
-                camera.lookAt( camera.target.add(camera.position) );
-                renderer.render(scene, camera);
-            };
-            animate();
+        var gui = new dat.GUI({ autoPlace: false }); gui.closed = true;
+        $(gui.domElement).addClass('gui').appendTo( $sphere );
+        camera.fov0 = camera.fov;
+        gui.add(camera, 'fov0').min(30).max(85).step(1).name("Fov").onChange(function(value){
+            if (value !== camera.fov) {
+                camera.fov = value;
+                camera.updateProjectionMatrix();
+            }
+        });
+        gui.add(camera, 'lon').min(0).max(360).step(1).listen().name("Lon");
+        gui.add(camera, 'lat').min(-85).max(85).step(1).listen().name("Lat");
 
-        })();
+        config.sphere = {
+            camera: camera,
+            scene: scene,
+            renderer: renderer,
+            mesh: mesh,
+            applyCanvasTexture: function() {
+                texture.needsUpdate = true;
+            },
+            nextMaterial: function() {
+                matIndex = (matIndex+1)%materials.length;
+                mesh.material = materials[matIndex];
+            },
+            gui: gui
+        };
+        animate();
+    })();
+
+    var canvas = d3.select("canvas").on("touchmove mousemove", moved).node(),
+        context = canvas.getContext("2d"),
+        width = canvas.width,
+        height = canvas.height;
+
+    var sites = d3.range(100)
+        .map(function(d) { return [Math.random() * width, Math.random() * height]; });
+
+    var voronoi = d3.voronoi()
+        .extent([[-1, -1], [width + 1, height + 1]]);
+
+    redraw();
+
+    function moved() {
+        sites[0] = d3.mouse(this);
+        redraw();
+    }
+
+    function redraw() {
+        var diagram = voronoi(sites),
+            links = diagram.links(),
+            polygons = diagram.polygons();
+
+        context.clearRect(0, 0, width, height);
+        context.beginPath();
+        drawCell(polygons[0]);
+        context.fillStyle = "#f00";
+        context.fill();
+
+        context.beginPath();
+        for (var i = 0, n = polygons.length; i < n; ++i) drawCell(polygons[i]);
+        context.strokeStyle = "#000";
+        context.stroke();
+
+        context.beginPath();
+        for (var i = 0, n = links.length; i < n; ++i) drawLink(links[i]);
+        context.strokeStyle = "rgba(0,0,0,0.2)";
+        context.stroke();
+
+        context.beginPath();
+        drawSite(sites[0]);
+        context.fillStyle = "#fff";
+        context.fill();
+
+        context.beginPath();
+        for (var i = 1, n = sites.length; i < n; ++i) drawSite(sites[i]);
+        context.fillStyle = "#000";
+        context.fill();
+        context.strokeStyle = "#fff";
+        context.stroke();
+    }
+
+    function drawSite(site) {
+        context.moveTo(site[0] + 2.5, site[1]);
+        context.arc(site[0], site[1], 2.5, 0, 2 * Math.PI, false);
+    }
+
+    function drawLink(link) {
+        context.moveTo(link.source[0], link.source[1]);
+        context.lineTo(link.target[0], link.target[1]);
+    }
+
+    function drawCell(cell) {
+        if (!cell) return false;
+        context.moveTo(cell[0][0], cell[0][1]);
+        for (var j = 1, m = cell.length; j < m; ++j) {
+            context.lineTo(cell[j][0], cell[j][1]);
+        }
+        context.closePath();
+        return true;
+    }
+
+    var addButton = function(element, callback) {
+        var cb = callback || $.noop;
+        var $ele = $('<input type="file" />');
+        $ele.on("change", function(e) {
+            var f = e.target.files[0];
+            if (f) {
+                var r;
+                (r = new FileReader()).onload = function (event) {
+                    cb(event.target.result);
+                };
+                r.readAsDataURL(f);
+            }
+        });
+        var $btn = $('<button class="new-image">New Image</button>');
+        $btn.appendTo(element);
+        $btn.on("click", function(e) {
+            e.preventDefault();
+            $ele.click();
+        });
+    };
+
+    addButton($image1.parent()[0], function(src){
+        $image1[0].src = src;
     });
-    /*
-    ctx2d
-    this._context2D.lineWidth = this._crossThickness * 3;
-					this._context2D.strokeStyle = "#FFFF00";
-					this._context2D.beginPath();
-					this._context2D.moveTo( this._xCross - this._crossMax - 2, this._yCross - this._crossMax - 2 );
-					this._context2D.lineTo( this._xCross - this._crossMin, this._yCross - this._crossMin );
-					this._context2D.moveTo( this._xCross + this._crossMin, this._yCross + this._crossMin );
-					this._context2D.lineTo( this._xCross + this._crossMax + 2, this._yCross + this._crossMax + 2 );
-					this._context2D.moveTo( this._xCross - this._crossMax - 2, this._yCross + this._crossMax + 2 );
-					this._context2D.lineTo( this._xCross - this._crossMin, this._yCross + this._crossMin );
-					this._context2D.moveTo( this._xCross + this._crossMin, this._yCross - this._crossMin );
-					this._context2D.lineTo( this._xCross + this._crossMax + 2, this._yCross - this._crossMax - 2 );
-					this._context2D.stroke();
-					*/
+    addButton($image2.parent()[0], function(src){
+        $image2[0].src = src;
+    });
 
+    (function(){
+        var width = $editor.width();
+        var height = $editor.height();
+
+        var scene = new THREE.Scene();
+        var camera = new THREE.PerspectiveCamera(75, width/height, 1, 1100);
+        camera.position.set(0,100,400);
+        camera.lookAt(scene.position);
+
+        var light = new THREE.AmbientLight(0xffffff);
+        scene.add(light);
+
+        (config.ghXZ = new THREE.GridHelper(300, 10, 0x00ff00, 0x00ff00));
+        (config.ghYZ = new THREE.GridHelper(300, 10, 0xff0000, 0xff0000)).rotateZ(-Math.PI/2);
+        (config.ghXY = new THREE.GridHelper(300, 10, 0x0000ff, 0x0000ff)).rotateX(Math.PI/2).rotateY(-Math.PI/2);
+        scene.add(config.ghXZ).add(config.ghYZ).add(config.ghXY);
+        scene.add(config.axisHelper = new THREE.AxisHelper(500));
+
+        var geometry = new THREE.PlaneGeometry(100, 100, 2, 2);
+        var material = new THREE.MeshBasicMaterial( {
+            side: THREE.DoubleSide
+            , wireframe: true
+        });
+        var mesh = new THREE.Mesh(geometry, material);
+        mesh.position.x = -150;
+        scene.add(mesh);
+
+        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+
+        var controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+        $(renderer.domElement).appendTo($editor);
+        var gui = new dat.GUI({ autoPlace: false }); gui.closed = true;
+        $(gui.domElement).addClass('gui').appendTo( $editor );
+
+        /*
+         gui
+         -  left, right roll a&b
+         - roll a, roll b
+         */
+
+        var animate = function(){
+            window.requestAnimationFrame( animate );
+            controls.update();
+            renderer.render(scene, camera);
+        };
+        animate();
+        config.editor = {
+            scene: scene,
+            camera: camera,
+            controls: controls
+        };
+    })();
+
+    toastr.info('Are you the 6 fingered man?');
+    toastr.warning('My name is Inigo Montoya. You killed my father, prepare to die!');
+    toastr.success('Have fun storming the castle!', 'Miracle Max Says');
+    toastr.error('I do not think that word means what you think it means.', 'Inconceivable!');
+    toastr.clear(); // animate remove
 </script>
-
 </body>
 </html>
