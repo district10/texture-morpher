@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>Texture Morpher</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="user-scalable=no, initial-scale=1">
+    <link rel="stylesheet" href="css/jquery-ui.min.css" type="text/css" />
+    <style>
+        body {
+            overflow: hidden;
+            z-index: -1000;
+        }
+        .main-panel {
+            position: absolute;
+            width: 800px;
+            height: 600px;
+            left: 75%; top: 50%;
+            transform:translate(-100%, -50%);
+        }
+        .sidebar {
+            border: 1px solid red;
+            position: absolute;
+            width: 200px; height: 600px;
+            left: 75%; top: 50%;
+            transform:translate(0, -50%);
+        }
+        .tab {
+            width: 95%;
+            height: 88%;
+        }
+        .image, #canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #canvas {
+            border: 1px solid red;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+    <script src="js/jquery.min.js"></script>
+    <script src="js/jquery-ui.min.js"></script>
+    <script>
+        $(function(){
+            $( ".main-panel" ).tabs();
+        });
+    </script>
+</head>
+<body>
+
+<div class="main-panel"><ul>
+    <li><a href="#tabs-1">Editor</a></li>
+    <li><a href="#tabs-2">Image1</a></li>
+    <li><a href="#tabs-3">Image2</a></li>
+    <li><a href="#tabs-4">Canvas</a></li>
+    <li><a href="#tabs-5">Sphere</a></li></ul>
+    <div id="tabs-1" class="tab"></div>
+    <div id="tabs-2" class="tab">
+        <a title="Image1" href="images/texture1.jpg" target="_blank"><img id="image1" class="image" src="images/texture1.jpg"></a>
+    </div>
+    <div id="tabs-3" class="tab">
+        <a title="Image2" href="images/texture2.jpg" target="_blank"><img id="image2" class="image" src="images/texture1.jpg"></a>
+    </div>
+    <div id="tabs-4" class="tab">
+        <canvas id="canvas"></canvas>
+    </div>
+    <div id="tabs-5" class="tab"></div>
+</div>
+</div>
+<div class="sidebar"></div>
+
+<script src="js/three.js"></script>
+<script src="js/DeviceOrientationControls.js"></script>
+<script src="js/tween.min.js"></script>
+
+<script>
+    "use strict";
+    var Config = function() {
+    };
+    var config = new Config();
+
+    var $editor = $("#tabs-1");
+    var $image1 = $("#image1"); // $image1[0].naturalWidth
+    var $image2 = $("#image2");
+    var $canvas = $("#canvas");
+    var $sphere = $("#tabs-5");
+
+    $(function(){
+        // sphere
+        (function(){
+            // canvas
+            var ctx = $canvas[0].getContext('2d');
+            ctx.drawImage($image1[0],0,0, 512, 256);
+            $canvas.width(512);
+            $canvas.height(256);
+            /*
+            $canvas.width($image1[0].naturalWidth);
+            $canvas.height($image1[0].naturalHeight);
+            */
+
+            var texture = new THREE.Texture( undefined, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping );
+            texture.image = $canvas[0];
+            var material = new THREE.MeshBasicMaterial( { map: texture } );
+            var geometry = new THREE.SphereGeometry( 500, 64, 32 ); geometry.scale( - 1, 1, 1 );
+            var mesh = new THREE.Mesh( geometry, material );
+            var scene = new THREE.Scene();
+            scene.add( mesh );
+
+            var width = $sphere.width();
+            var height = $sphere.height();
+            var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
+
+            camera.isUserInteracting = false;
+            camera.lon = camera.lat = 0;
+            camera.onPointerDownPointerX = 0;
+            camera.onPointerDownPointerY = 0;
+            camera.onPointerDownLon = 0;
+            camera.onPointerDownLat = 0;
+            camera.target = new THREE.Vector3( 0, 0, 0 );
+
+            var renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio( window.devicePixelRatio );
+            renderer.setSize(width, height);
+            // renderer.domElement.style.position = 'absolute'; renderer.domElement.style.top = 0;
+            $sphere[0].appendChild(renderer.domElement);
+            renderer.domElement.addEventListener( 'mousedown', function(event) {
+                event.preventDefault();
+                camera.isUserInteracting = true;
+                camera.onPointerDownPointerX = event.clientX;
+                camera.onPointerDownPointerY = event.clientY;
+                camera.onPointerDownLon = camera.lon;
+                camera.onPointerDownLat = camera.lat;
+            }, false );
+            renderer.domElement.addEventListener( 'mousedown', function(event) {
+                event.preventDefault();
+                camera.isUserInteracting = true;
+                camera.onPointerDownPointerX = event.clientX;
+                camera.onPointerDownPointerY = event.clientY;
+                camera.onPointerDownLon = camera.lon;
+                camera.onPointerDownLat = camera.lat;
+            }, false );
+            renderer.domElement.addEventListener( 'mouseup', function(event) {
+                camera.isUserInteracting = false;
+            }, false );
+
+            var animate = function() {
+                window.requestAnimationFrame(animate);
+                var phi = THREE.Math.degToRad( 90 - camera.lat );
+                var theta = THREE.Math.degToRad( camera.lon );
+                camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+                camera.target.y = 500 * Math.cos( phi );
+                camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+                camera.lookAt( camera.target.add(camera.position) );
+                renderer.render(scene, camera);
+            };
+            animate();
+
+        })();
+    });
+    /*
+    ctx2d
+    this._context2D.lineWidth = this._crossThickness * 3;
+					this._context2D.strokeStyle = "#FFFF00";
+					this._context2D.beginPath();
+					this._context2D.moveTo( this._xCross - this._crossMax - 2, this._yCross - this._crossMax - 2 );
+					this._context2D.lineTo( this._xCross - this._crossMin, this._yCross - this._crossMin );
+					this._context2D.moveTo( this._xCross + this._crossMin, this._yCross + this._crossMin );
+					this._context2D.lineTo( this._xCross + this._crossMax + 2, this._yCross + this._crossMax + 2 );
+					this._context2D.moveTo( this._xCross - this._crossMax - 2, this._yCross + this._crossMax + 2 );
+					this._context2D.lineTo( this._xCross - this._crossMin, this._yCross + this._crossMin );
+					this._context2D.moveTo( this._xCross + this._crossMin, this._yCross - this._crossMin );
+					this._context2D.lineTo( this._xCross + this._crossMax + 2, this._yCross - this._crossMax - 2 );
+					this._context2D.stroke();
+					*/
+
+</script>
+
+</body>
+</html>
