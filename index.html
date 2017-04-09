@@ -313,13 +313,15 @@
             var faces = [];
             var xmin = 100000000, xmax = 0, ymin = 10000000000, ymax = 0;
             app.pairs.forEach(function(pair){
-                var p = [pair.x1, pair.y1];
-                refs[pos2name(p[0],p[1])] = pair;
-                sites.push(p);
-                if (xmin > p[0]) { xmin = p[0]; }
-                if (xmax < p[0]) { xmax = p[0]; }
-                if (ymin > p[1]) { ymin = p[1]; }
-                if (ymax < p[1]) { ymax = p[1]; }
+                if (pair.valid && pair.p1.visible) {
+                    var p = [pair.x1, pair.y1];
+                    refs[pos2name(p[0],p[1])] = pair;
+                    sites.push(p);
+                    if (xmin > p[0]) { xmin = p[0]; }
+                    if (xmax < p[0]) { xmax = p[0]; }
+                    if (ymin > p[1]) { ymin = p[1]; }
+                    if (ymax < p[1]) { ymax = p[1]; }
+                }
             });
             var voronoi = d3.voronoi().extent([[xmin-10, ymin-10], [xmax+10, ymax+10]]);
             var diagram = voronoi(sites);
@@ -366,7 +368,8 @@
             window.open(url, '_blank');
             window.focus();
         };
-        this.loadPairs = Util.fileInputReadAsText(function(text){
+        this.loadPairsTxt = function(text) {
+            cleanPairs();
             var pairs = JSON.parse(text);
             pairs.forEach(function(pair){
                 var p = new Pair({
@@ -378,7 +381,8 @@
                 });
                 pushPair(p);
             });
-        });
+        };
+        this.loadPairs = Util.fileInputReadAsText(_this.loadPairsJSON);
 
         this.CastMode = {
             GetPosition: 1,
@@ -471,7 +475,7 @@
         $sphere.appendTo($tabs[4]);
 
         camera.isUserInteracting = false;
-        camera.lon = 0;
+        camera.lon = 170;
         camera.lat = 0;
         camera.onPointerDownPointerX = 0;
         camera.onPointerDownPointerY = 0;
@@ -696,7 +700,8 @@
         // gui.add(cameraOrtho.position, 'x').min(-2048).max(2048).step(1).name("X");
         // gui.add(cameraOrtho.position, 'z').min(-3000).max(+3000).step(1).name("Z");
 
-        config.helpers.push(cameraOrthoHelper);
+        config.cameraOrthoHelper = cameraOrthoHelper;
+        config.helpers.push(config.cameraOrthoHelper);
         config.helpers.push(config.axisHelper);
 
         var animate = function(){
@@ -845,6 +850,15 @@
         }
     }
 
+    function cleanPairs() {
+        app.pairs = [];
+        config.pair = null;
+        config.helpers.forEach(function(obj) { obj.visible = false; });
+        config.helpers = [];
+        config.helpers.push(config.cameraOrthoHelper);
+        config.helpers.push(config.axisHelper);
+    }
+
     function setCursorStyle(style) {
         $("body").removeClass();
         if (style) {
@@ -929,9 +943,13 @@
 
     [config.guis[0], config.guis[4]].forEach(function(gui){
         gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen().onChange(config.updateTriangulation).name("过渡");
-        gui.add(config, 'forward' ).name("前进");
-        gui.add(config, 'backward').name("后退");
+        // gui.add(config, 'forward' ).name("前进");
+        // gui.add(config, 'backward').name("后退");
     });
+
+    $.get('pairs.json', function(data) {
+        config.loadPairsTxt(data);
+    }, 'text');
 
 </script>
 </body>
