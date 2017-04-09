@@ -8,9 +8,36 @@
     <link rel="stylesheet" href="css/dat-gui-light-theme.css" type="text/css" />
     <link rel="stylesheet" href="css/toastr.min.css" type="text/css" />
     <style>
+        body.move, body.move *                   { cursor: move !important; }
+        body.crosshair, body.crosshair *        { cursor: crosshair !important; }
+        body.pointer, body.pointer *             { cursor: pointer !important; }
+        body.all-scroll, body.all-scroll *      { cursor: all-scroll !important; }
+        li.pair input { width: 80px; }
+        li.pair {
+            opacity: 0.8;
+            display: block;
+        }
+        li.pair * {
+            padding: 0;
+            margin: 0;
+        }
+        li.pair.invalid {
+            opacity: 0.2;
+        }
+        #app {
+            padding: 0;
+            margin: 0;
+            padding-left: 10px;
+            overflow: auto;
+        }
+        .pairs, .pair {
+            width: 100%;
+            padding: 0;
+            margin: 0;
+        }
         body {
-            overflow: hidden;
             z-index: -1000;
+            overflow: auto;
         }
         .main-panel {
             position: absolute;
@@ -18,46 +45,44 @@
             height: 600px;
             left: 75%;
             top: 50%;
-            transform:translate(-100%, -50%);
+            transform: translate(-100%, -50%);
         }
         .sidebar {
             position: absolute;
-            width: 200px;
+            width: 250px;
             height: 600px;
             left: 75%;
             top: 50%;
-            transform:translate(0, -50%);
+            transform: translate(0, -50%);
         }
-        .tab, ._tab {
-            width: 95%;
-            height: 88%;
+        .sidebar > ul, .sidebar > ul > li {
+            width: 100%;
         }
-        .image {
-            // max-width: 100%; max-height: 100%;
+        .tab {
+            // width: 95%; height: 88%;
+        }
+        .tab > canvas {
+            transform: translate(-22px, 10px);
         }
         #canvas {
             border: 1px solid red;
+            transform-origin: top left;
         }
-        button.new-image {
-            padding: 2px 6px;
-            position: absolute;
-            top: 80px;
-            left: 40px;
-            -webkit-transition: opacity 0.8s ease-in-out;
-            -o-transition: opacity 0.8s ease-in-out;
-            transition: opacity 0.8s ease-in-out;
-            opacity: 0.25;
+        .image {
+            max-width: 100%; max-height: 100%;
         }
-        button.new-image:hover {
-            opacity: 1;
-            cursor: pointer !important;
+        #tabs-3 {
+            overflow: auto;
         }
-        #tabs-2, #tabs-3, #tabs-4 { overflow: auto; }
-        #tabs-5 canvas { cursor: pointer !important; }
+        #tabs-4 canvas.mousedown { cursor: pointer !important; }
         .gui {
             position: absolute;
-            top: 62px;
-            right: 21px;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .pair {
+            list-style: none;
         }
     </style>
     <script src="js/jquery.min.js"></script>
@@ -71,24 +96,45 @@
 <body>
 
 <div class="main-panel"><ul>
-    <li><a href="#tabs-1">Editor</a></li>
-    <li><a href="#tabs-2">Image1</a></li>
-    <li><a href="#tabs-3">Image2</a></li>
-    <li><a href="#tabs-4">Canvas</a></li>
-    <li><a href="#tabs-5">Sphere</a></li></ul>
-    <div id="tabs-1" class="_tab"></div>
-    <div id="tabs-2" class="tab">
+    <li><a href="#tabs-0">Editor</a></li>
+    <li><a href="#tabs-1">Image1</a></li>
+    <li><a href="#tabs-2">Image2</a></li>
+    <li><a href="#tabs-3">Canvas</a></li>
+    <li><a href="#tabs-4">Sphere</a></li></ul>
+    <div id="tabs-0" class="tab"></div>
+    <div id="tabs-1" class="tab">
         <img id="image1" class="image" src="images/texture1.jpg" alt="image1" />
     </div>
-    <div id="tabs-3" class="tab">
+    <div id="tabs-2" class="tab">
         <img id="image2" class="image" src="images/texture2.jpg" alt="image2" />
     </div>
-    <div id="tabs-4" class="tab">
+    <div id="tabs-3" class="tab">
         <canvas id="canvas"></canvas>
     </div>
-    <div id="tabs-5" class="tab"></div>
+    <div id="tabs-4" class="tab"></div>
 </div>
-<div class="sidebar"></div>
+<div class="sidebar" id="app">
+    <div class="header">Pair List</div>
+    <ul class="pairs">
+        <li v-for="pair in pairs"
+            class="pair"
+            :class="{ invalid: !pair.valid }"
+            @mouseenter="activate(pair)"
+            @mouseleave="deactivate(pair)">
+            <div class="view">
+                <span class="point1">
+                    <input type="number" @keyup="modified(pair)" @click="modified(pair)" step="1" title="x1" v-model="pair.x1">
+                    <input type="number" @keyup="modified(pair)" @click="modified(pair)" step="1" title="y1" v-model="pair.y1">
+                </span><br/>
+                <span class="point2">
+                    <input type="number" @keyup="modified(pair)" @click.stop.prevent="modified(pair)" step="1" title="x2" v-model="pair.x2">
+                    <input type="number" @keyup="modified(pair)" @click.stop.prevent="modified(pair)" step="1" title="y2" v-model="pair.y2">
+                </span>
+                <button class="apply" @dblclick="removePair(pair)">X</button>
+            </div>
+        </li>
+    </ul>
+</div>
 
 <script src="js/d3.v4.min.js"></script>
 <script src="js/dat.gui.min.js"></script>
@@ -97,27 +143,267 @@
 <script src="js/OrbitControls.js"></script>
 <script src="js/tween.min.js"></script>
 <script src="js/toastr.min.js"></script>
+<script src="js/vue.js"></script>
+<!--<script src="js/object.watch.js"></script>-->
+<script src="js/utils.js"></script>
 
 <script>
     "use strict";
+
+    var raycaster = new THREE.Raycaster();
+    var cast = function ( point, camera, mode ) {
+        var objects = [config.group1, config.group2];
+        var mouse = new THREE.Vector2( ( point.x * 2 ) - 1, - ( point.y * 2 ) + 1  );
+        raycaster.setFromCamera( mouse, camera );
+        var hit = raycaster.intersectObjects( objects, true );
+        if ( hit.length > 0 && hit[0].uv && mode !== undefined) {
+            var o = hit[0];
+            var p = o.point;
+            var uv = o.uv;
+            var obj = o.object;
+            if (mode === config.CastMode.GetPosition) {
+                p.uv = {
+                    x: uv.x,
+                    y: uv.y
+                };
+                return p;
+            } else if (mode === config.CastMode.NewPair) {
+                var pair;
+                if (p.z > 0) { // group1
+                    pair = new Pair({ x1: p.x, y1: p.y, u1: uv.x, v1: uv.y });
+                } else { // group2
+                    pair = new Pair({ x2: p.x, y2: p.y, u2: uv.x, v2: uv.y });
+                }
+                pushPair(pair); // push if valid
+            } else if (mode === config.CastMode.GetPoint) {
+                if (obj.pair !== undefined && obj.pair.isPair === true) {
+                    return obj;
+                } else {
+                    return null;
+                }
+            }
+        } else {
+            return null;
+        }
+    };
+
+    var _renderer = new THREE.WebGLRenderer({ antialias: true });
+    _renderer.setSize(4096, 2048);
+
+    // x1, y1, x2, y2, u1, v1, u2, v2, valid, p1, p2, link
+    var point = new THREE.SphereGeometry( 10, 64, 32 );
+    var p1mat = new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSide } );
+    var p2mat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
+
+    (function(){
+        var geometry = new THREE.SphereGeometry( 20, 64, 32 );
+        var pxmat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide } );
+        var geometry = new THREE.Geometry();
+        var material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+        geometry.vertices.push(new THREE.Vector3());
+        geometry.vertices.push(new THREE.Vector3());
+    })();
+
+    var Pair = function(options) {
+        var options = options || {};
+        var x1, y1, u1, v1;
+        var x2, y2, u2, v2;
+        var p1 = new THREE.Mesh( point, p1mat );
+        var p2 = new THREE.Mesh( point, p2mat );
+        var geometry = new THREE.Geometry();
+        var material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+        if (options.loading === true) {
+            x1 = options.x1;
+            x2 = options.x2;
+            y1 = options.y1;
+            y2 = options.y2;
+            u1 = x1/2048 + 0.5;
+            v1 = (-y1/1024) + 0.5;
+            u2 = x2/2048 + 0.5;
+            v2 = (-y2/1024) + 0.5;
+        } else if (options.x1 !== undefined) {
+            x1 = options.x1;
+            y1 = options.y1;
+            u1 = options.u1;
+            v1 = options.v1;
+            x2 = x1;
+            y2 = y1;
+            u2 = u1;
+            v2 = v1;
+        } else if (options.x2 !== undefined) {
+            x2 = options.x2;
+            y2 = options.y2;
+            u2 = options.u2;
+            v2 = options.v2;
+            x1 = x2;
+            y1 = y2;
+            u1 = u2;
+            v1 = v2;
+        } else {
+            return { valid: false };
+        }
+        p1.position.set(x1,y1,0);
+        p2.position.set(x2,y2,0);
+        geometry.vertices.push(new THREE.Vector3(x1,y1,config.group1.position.z));
+        geometry.vertices.push(new THREE.Vector3(x2,y2,config.group2.position.z));
+        var link = new THREE.Line( geometry, material );
+        var ret = {
+            x1: x1, y1: y1,
+            x2: x2, y2: y2,
+            u1: u1, v1: v1,
+            u2: u2, v2: v2,
+            p1: p1, p2: p2,
+            link: link,
+            valid: true,
+            isPair: true
+        };
+        p1.pair = ret;
+        p2.pair = ret;
+        link.pair = ret;
+        return ret;
+    };
+
     var Config = function() {
         var _this = this;
-        this.a = this.b = this.c = $.noop;
+
+        this.applyTriangulation = function(){
+            function pos2name(x, y) {
+                return x.toFixed(0)+"-"+y.toFixed(0);
+            }
+            var sites = [];
+            var refs = {};
+            var faces = [];
+            var xmin = 100000000, xmax = 0, ymin = 10000000000, ymax = 0;
+            app.pairs.forEach(function(pair){
+                var p = [pair.x1, pair.y1];
+                refs[pos2name(p[0],p[1])] = pair;
+                sites.push(p);
+                if (xmin > p[0]) { xmin = p[0]; }
+                if (xmax < p[0]) { xmax = p[0]; }
+                if (ymin > p[1]) { ymin = p[1]; }
+                if (ymax < p[1]) { ymax = p[1]; }
+            });
+            var voronoi = d3.voronoi().extent([[xmin-10, ymin-10], [xmax+10, ymax+10]]);
+            var diagram = voronoi(sites);
+            var triangles = diagram.triangles();
+            var index = 0;
+            config.groupx.children = [];
+            triangles.forEach(function(tri){
+                var p1 = tri[0];
+                var p2 = tri[1];
+                var p3 = tri[2];
+                var p1n = pos2name(p1[0],p1[1]);
+                var p2n = pos2name(p2[0],p2[1]);
+                var p3n = pos2name(p3[0],p3[1]);
+                var ref1 = refs[p1n];
+                var ref2 = refs[p2n];
+                var ref3 = refs[p3n];
+                if ( ref1 !== undefined && ref2 !== undefined && ref3 !== undefined ) {
+                    [ref1, ref2, ref3].forEach(function(r){
+                        r.p1.position.z += 100;
+                        r.p2.position.z -= 100;
+                    });
+                    toastr.info("Face3: "+(++index));
+                    var mesh = newPairTriangle(ref1,ref2,ref3);
+                    config.groupx.add(mesh);
+                    faces.push(mesh);
+                }
+            });
+        };
+
+        var pos1 = new THREE.Vector3();
+        var pos2 = new THREE.Vector3();
+
+        this.savePos1 = function() { pos1.copy(config.editor.camera.position); toastr.info("Pos1 Saved" ); };
+        this.savePos2 = function() { pos2.copy(config.editor.camera.position); toastr.info("Pos1 Loaded"); };
+        this.loadPos1 = function() { config.editor.camera.position.copy(pos1); toastr.info("Pos2 Saved" ); };
+        this.loadPos2 = function() { config.editor.camera.position.copy(pos2); toastr.info("Pos2 Loaded"); };
+
+        this.savePairs = function() {
+            var ret = [];
+            app.pairs.forEach(function(pair){
+                ret.push({
+                    x1: pair.x1,
+                    y1: pair.y1,
+                    x2: pair.x2,
+                    y2: pair.y2
+                });
+            });
+            var url = 'data:text/json;charset=utf8,' + encodeURIComponent(JSON.stringify(ret));
+            window.open(url, '_blank');
+            window.focus();
+        };
+        this.loadPairs = Util.fileInputReadAsText(function(text){
+            var pairs = JSON.parse(text);
+            pairs.forEach(function(pair){
+                var p = new Pair({
+                    loading: true,
+                    x1: pair.x1,
+                    y1: pair.y1,
+                    x2: pair.x2,
+                    y2: pair.y2
+                });
+                pushPair(p);
+            });
+        });
+
+        this.CastMode = {
+            GetPosition: 1,
+            GetPoint: 2,
+            NewPair: 3
+        };
+
+        var loadTexture = function(callback) {
+            var cb = callback || $.noop;
+            var $ele = $('<input type="file" />');
+            $ele.on("change", function(e) {
+                var f = e.target.files[0];
+                if (f) {
+                    var r;
+                    (r = new FileReader()).onload = function (event) {
+                        cb(event.target.result);
+                    };
+                    r.readAsDataURL(f);
+                }
+            });
+            return function() {
+                $ele.click();
+            };
+        };
+        this.loadTexture1 = loadTexture(function(src){
+            $image1[0].src = src;
+        });
+        this.loadTexture2 = loadTexture(function(src){
+            $image2[0].src = src;
+        });
+        this.guis = [];
     };
     var config = new Config();
 
-    var $editor = $("#tabs-1");
-    var $image1 = $("#image1"); // $image1[0].naturalWidth
+    var $editor, $sphere;
+    var $image1 = $("#image1");
     var $image2 = $("#image2");
     var $canvas = $("#canvas");
-    var $sphere = $("#tabs-5");
+    $canvas.hide();
+    var $tabs = [ $("#tabs-0"), $("#tabs-1"), $("#tabs-2"), $("#tabs-3"), $("#tabs-4") ];
+    $(_renderer.domElement).appendTo($tabs[3]);
+
+    // gui for each tab
+    (function (indices) {
+        indices.forEach(function(index){
+            var $tab = $tabs[index];
+            var gui = new dat.GUI({ autoPlace: false }); gui.closed = true;
+            $(gui.domElement).addClass('gui').appendTo( $tab );
+            config.guis[index] = gui;
+        });
+    })([0,1,2,3,4]);
+
+    config.guis[1].add(config, 'loadTexture1').name("加载图片");
+    config.guis[2].add(config, 'loadTexture2').name("加载图片");
 
     $canvas[0].width = 1024;
     $canvas[0].height = 512;
-
     var ctx = $canvas[0].getContext('2d');
-    var image1 = new Image(); image1.src = "images/texture1.jpg";
-    var image2 = new Image(); image2.src = "images/texture2.jpg";
 
     var draw1Image = function(image) {
         ctx.clearRect( 0, 0, image.width, image.height );
@@ -127,30 +413,29 @@
         config.sphere.applyCanvasTexture();
     };
 
-    var draw1 = function() { draw1Image($image1[0]); };
-    var draw2 = function() { draw1Image($image2[0]); };
-
+    // sphere
     (function (){
-        var texture = new THREE.Texture( $canvas[0], THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping ); texture.needsUpdate = true;
+        var texture = new THREE.Texture( _renderer.domElement, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping );
+        texture.needsUpdate = true;
         var materials = [
             new THREE.MeshBasicMaterial( { map: texture } ),
             new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'images/texture1.jpg' ) } )
         ];
-        var matIndex = 1;
-        // var material = material[matIndex];
-        var material = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'images/texture1.jpg' ) } );
+        var matIndex = 0;
+        var material = materials[0];
         var geometry = new THREE.SphereGeometry( 500, 64, 32 ); geometry.scale( - 1, 1, 1 );
         var mesh = new THREE.Mesh( geometry, material );
         var scene = new THREE.Scene();
         scene.add( mesh );
 
-        var width = $sphere.width();
-        var height = $sphere.height();
+        var width = $tabs[4].width();
+        var height = $tabs[4].height();
         var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
         var renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio( window.devicePixelRatio );
         renderer.setSize(width, height);
-        $sphere[0].appendChild(renderer.domElement);
+        $sphere = $(renderer.domElement);
+        $sphere.appendTo($tabs[4]);
 
         camera.isUserInteracting = false;
         camera.lon = camera.lat = 0;
@@ -161,6 +446,7 @@
         camera.target = new THREE.Vector3( 0, 0, 0 );
 
         renderer.domElement.addEventListener( 'mousedown', function(event) {
+            $sphere.addClass("mousedown");
             camera.isUserInteracting = true;
             camera.onPointerDownPointerX = event.clientX;
             camera.onPointerDownPointerY = event.clientY;
@@ -174,11 +460,13 @@
             }
         }, false );
         renderer.domElement.addEventListener( 'mouseup', function(event) {
+            $sphere.removeClass("mousedown");
             camera.isUserInteracting = false;
         }, false );
 
         var animate = function() {
             window.requestAnimationFrame(animate);
+            texture.needsUpdate = true;
             if (camera.lon > 360) { camera.lon -= 360; }
             if (camera.lon <   0) { camera.lon += 360; }
             camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
@@ -191,17 +479,15 @@
             renderer.render(scene, camera);
         };
 
-        var gui = new dat.GUI({ autoPlace: false }); gui.closed = true;
-        $(gui.domElement).addClass('gui').appendTo( $sphere );
-        camera.fov0 = camera.fov;
-        gui.add(camera, 'fov0').min(30).max(85).step(1).name("Fov").onChange(function(value){
-            if (value !== camera.fov) {
-                camera.fov = value;
-                camera.updateProjectionMatrix();
-            }
-        });
-        gui.add(camera, 'lon').min(0).max(360).step(1).listen().name("Lon");
-        gui.add(camera, 'lat').min(-85).max(85).step(1).listen().name("Lat");
+        var gui = config.guis[4];
+        gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
+        gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
+        gui.add(camera, 'fov').min(30).max(85).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
+        renderer.domElement.addEventListener( 'wheel', function(event) {
+            var fov = camera.fov + event.deltaY * 0.05;
+            camera.fov = THREE.Math.clamp(Math.round(fov), 30, 85);
+            camera.updateProjectionMatrix();
+        }, false );
 
         config.sphere = {
             camera: camera,
@@ -220,153 +506,190 @@
         animate();
     })();
 
-    var canvas = d3.select("canvas").on("touchmove mousemove", moved).node(),
-        context = canvas.getContext("2d"),
-        width = canvas.width,
-        height = canvas.height;
-
-    var sites = d3.range(100)
-        .map(function(d) { return [Math.random() * width, Math.random() * height]; });
-
-    var voronoi = d3.voronoi()
-        .extent([[-1, -1], [width + 1, height + 1]]);
-
-    redraw();
-
-    function moved() {
-        sites[0] = d3.mouse(this);
-        redraw();
-    }
-
-    function redraw() {
-        var diagram = voronoi(sites),
-            links = diagram.links(),
-            polygons = diagram.polygons();
-
-        context.clearRect(0, 0, width, height);
-        context.beginPath();
-        drawCell(polygons[0]);
-        context.fillStyle = "#f00";
-        context.fill();
-
-        context.beginPath();
-        for (var i = 0, n = polygons.length; i < n; ++i) drawCell(polygons[i]);
-        context.strokeStyle = "#000";
-        context.stroke();
-
-        context.beginPath();
-        for (var i = 0, n = links.length; i < n; ++i) drawLink(links[i]);
-        context.strokeStyle = "rgba(0,0,0,0.2)";
-        context.stroke();
-
-        context.beginPath();
-        drawSite(sites[0]);
-        context.fillStyle = "#fff";
-        context.fill();
-
-        context.beginPath();
-        for (var i = 1, n = sites.length; i < n; ++i) drawSite(sites[i]);
-        context.fillStyle = "#000";
-        context.fill();
-        context.strokeStyle = "#fff";
-        context.stroke();
-    }
-
-    function drawSite(site) {
-        context.moveTo(site[0] + 2.5, site[1]);
-        context.arc(site[0], site[1], 2.5, 0, 2 * Math.PI, false);
-    }
-
-    function drawLink(link) {
-        context.moveTo(link.source[0], link.source[1]);
-        context.lineTo(link.target[0], link.target[1]);
-    }
-
-    function drawCell(cell) {
-        if (!cell) return false;
-        context.moveTo(cell[0][0], cell[0][1]);
-        for (var j = 1, m = cell.length; j < m; ++j) {
-            context.lineTo(cell[j][0], cell[j][1]);
-        }
-        context.closePath();
-        return true;
-    }
-
-    var addButton = function(element, callback) {
-        var cb = callback || $.noop;
-        var $ele = $('<input type="file" />');
-        $ele.on("change", function(e) {
-            var f = e.target.files[0];
-            if (f) {
-                var r;
-                (r = new FileReader()).onload = function (event) {
-                    cb(event.target.result);
-                };
-                r.readAsDataURL(f);
-            }
-        });
-        var $btn = $('<button class="new-image">New Image</button>');
-        $btn.appendTo(element);
-        $btn.on("click", function(e) {
-            e.preventDefault();
-            $ele.click();
-        });
-    };
-
-    addButton($image1.parent()[0], function(src){
-        $image1[0].src = src;
-    });
-    addButton($image2.parent()[0], function(src){
-        $image2[0].src = src;
-    });
-
+    // d3
     (function(){
-        var width = $editor.width();
-        var height = $editor.height();
+    })();
+
+    // editor
+    (function(){
+        var width = $tabs[0].width();
+        var height = $tabs[0].height();
 
         var scene = new THREE.Scene();
-        var camera = new THREE.PerspectiveCamera(75, width/height, 1, 1100);
-        camera.position.set(0,100,400);
-        camera.lookAt(scene.position);
-
         var light = new THREE.AmbientLight(0xffffff);
         scene.add(light);
 
-        (config.ghXZ = new THREE.GridHelper(300, 10, 0x00ff00, 0x00ff00));
-        (config.ghYZ = new THREE.GridHelper(300, 10, 0xff0000, 0xff0000)).rotateZ(-Math.PI/2);
-        (config.ghXY = new THREE.GridHelper(300, 10, 0x0000ff, 0x0000ff)).rotateX(Math.PI/2).rotateY(-Math.PI/2);
+        (config.ghXZ = new THREE.GridHelper(5000, 10, 0x00ff00, 0x00ff00));
+        (config.ghYZ = new THREE.GridHelper(5000, 10, 0xff0000, 0xff0000)).rotateZ(-Math.PI/2);
+        (config.ghXY = new THREE.GridHelper(5000, 10, 0x0000ff, 0x0000ff)).rotateX(Math.PI/2).rotateY(-Math.PI/2);
         scene.add(config.ghXZ).add(config.ghYZ).add(config.ghXY);
-        scene.add(config.axisHelper = new THREE.AxisHelper(500));
-
-        var geometry = new THREE.PlaneGeometry(100, 100, 2, 2);
-        var material = new THREE.MeshBasicMaterial( {
-            side: THREE.DoubleSide
-            , wireframe: true
-        });
-        var mesh = new THREE.Mesh(geometry, material);
-        mesh.position.x = -150;
-        scene.add(mesh);
+        scene.add(config.axisHelper = new THREE.AxisHelper(10000));
+        config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = config.axisHelper.visible = false;
 
         var renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio( window.devicePixelRatio );
         renderer.setSize(width, height);
+        $editor = $(renderer.domElement);
+        $editor.appendTo($tabs[0]);
 
+        var gui = config.guis[0];
+        $(gui.domElement).addClass('gui').appendTo( $tabs[0] );
+        config.showHelpers = false;
+        gui.add(config, 'showHelpers').onChange(function(vis){
+            config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = vis;
+        }).name("调试");
+
+        gui.add(config, 'savePairs').name("保存 Pairs");
+        gui.add(config, 'loadPairs').name("加载 Pairs");
+        gui.add(config, 'applyTriangulation').name("三角化");
+        config.alpha = 0;
+        gui.add(config, 'alpha').min(0.0).max(1.0).step(0.01).onChange(function(alpha){
+            config.groupx.children.forEach(function(t){
+                if (t.isPairTriangle === true) {
+                    t.updatePosition(alpha);
+                }
+            });
+        });
+
+        var group1 = new THREE.Group();
+        var group2 = new THREE.Group();
+        var groupx = new THREE.Group();
+
+        (function(){
+            var texture = new THREE.TextureLoader().load('images/texture1.jpg');
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
+            var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            var mesh = new THREE.Mesh( geometry, material );
+            group1.add(mesh);
+            config.plane1 = mesh;
+        })();
+        (function(){
+            var texture = new THREE.TextureLoader().load('images/texture2.jpg');
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
+            var mesh = new THREE.Mesh( geometry, material );
+            group2.add(mesh);
+            config.plane2 = mesh;
+        })();
+
+        group1.add(config.plane1);
+        group2.add(config.plane2);
+
+        config.opacity = 1.0;
+        gui.add(config, 'opacity').min(0.0).max(1.0).step(0.01).onChange(function (value) {
+            config.plane1.material.transparent = true;
+            config.plane1.material.opacity = value;
+        }).name("透明度");
+
+        scene.add(group1);
+        scene.add(group2);
+        scene.add(groupx);
+
+        config.group1 = group1;
+        config.group2 = group2;
+        config.groupx = groupx;
+        config.scene = scene;
+
+        var camera = new THREE.PerspectiveCamera(75, width/height, 1, 1000000);
+        camera.position.set(0,0,4000);
+        camera.lookAt(scene.position);
         var controls = new THREE.OrbitControls( camera, renderer.domElement );
+        /// gui.domElement).addClass('gui').appendTo( $tabs[0] );
 
-        $(renderer.domElement).appendTo($editor);
-        var gui = new dat.GUI({ autoPlace: false }); gui.closed = true;
-        $(gui.domElement).addClass('gui').appendTo( $editor );
+        var isMouseDown = false;
+        renderer.domElement.addEventListener( 'mousedown', function(event) {
+            var x0 = 348, x1 = 1146; var y0 = 150, y1 =  673; // just get it over
+            var array = [(event.clientX-x0)/(x1-x0), (event.clientY-y0)/(y1-y0)];
+            isMouseDown = true;
+            if (event.button === 2) {
+                // right click to add point
+                cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.NewPair );
+            } else {
+                var point = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPoint );
+                if (point) {
+                    config.engagedPoint = point;
+                } else {
+                    config.engagedPoint = null;
+                }
+            }
+        });
+
+        renderer.domElement.addEventListener( 'mousemove', function(event) {
+            if (controls.enabled) { return; }
+            var x0 = 348, x1 = 1146; var y0 = 150, y1 =  673; // just get it over
+            var array = [(event.clientX-x0)/(x1-x0), (event.clientY-y0)/(y1-y0)];
+            var point = config.engagedPoint;
+            if (isMouseDown && point) {
+                // update the engaged one
+                var position = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPosition );
+                if (position) {
+                    point.position.set(position.x, position.y, 0);
+                    // shitshit
+                    var pair = point.pair;
+                    pair.link.geometry.vertices[0].set(pair.p1.position.x, pair.p1.position.y, config.group1.position.z);
+                    pair.link.geometry.vertices[1].set(pair.p2.position.x, pair.p2.position.y, config.group2.position.z);
+                    pair.link.geometry.verticesNeedUpdate = true;
+                }
+                return;
+            } else {
+                var point = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPoint );
+                if (point) {
+                    setCursorStyle("pointer");
+                } else {
+                    setCursorStyle();
+                }
+            }
+        }, false);
+        renderer.domElement.addEventListener( 'mouseup', function(event) {
+            isMouseDown = false;
+        }, false);
+
+        var cameraOrtho = new THREE.OrthographicCamera(-2048,2048,1024,-1024,100,5000); // left, right, top, bottom, near, far
+        cameraOrtho.position.set(0,0,3000);
+        cameraOrtho.lookAt(scene.position);
+        var cameraOrthoHelper = new THREE.CameraHelper( cameraOrtho );
+        scene.add( cameraOrthoHelper );
 
         /*
          gui
          -  left, right roll a&b
-         - roll a, roll b
+         - roll a, roll b, 4096x2048
+                <--------------------+---------------
+               groupx    group1      |     group2
          */
+        var gui = config.guis[0];
+        config.spacing = 1000;
+        config.applySpacing = function(distance) {
+            var distance = distance || config.spacing;
+            group1.position.z =  distance;
+            group2.position.z = -distance;
+            groupx.position.z =  distance * 2;
+        };
+        config.applySpacing();
+        gui.add(controls, 'enabled').listen().name("关闭 OrbitControls");
+        gui.add(config, 'spacing').min(100).max(1000).step(10).listen().onChange(config.applySpacing).name("间距");
+
+        config.shift = 0;
+        gui.add(config, 'shift').min(-2048).max(2048).step(1).listen().onChange(function(shift){
+            group2.position.x = shift;
+        }).name("偏移量");
+        gui.add(cameraOrtho.position, 'x').min(-2048).max(2048).step(1).name("X");
+        gui.add(cameraOrtho.position, 'z').min(-3000).max(+3000).step(1).name("Z");
 
         var animate = function(){
+            // shit
             window.requestAnimationFrame( animate );
+            cameraOrthoHelper.update();
             controls.update();
             renderer.render(scene, camera);
+
+            cameraOrthoHelper.visible = false;
+            config.axisHelper.visible = false;
+            _renderer.render(scene, cameraOrtho);
+            cameraOrthoHelper.visible = true;
+            config.axisHelper.visible = true;
         };
         animate();
         config.editor = {
@@ -376,11 +699,169 @@
         };
     })();
 
-    toastr.info('Are you the 6 fingered man?');
-    toastr.warning('My name is Inigo Montoya. You killed my father, prepare to die!');
-    toastr.success('Have fun storming the castle!', 'Miracle Max Says');
-    toastr.error('I do not think that word means what you think it means.', 'Inconceivable!');
-    toastr.clear(); // animate remove
+    var app = new Vue({
+        data: { pairs: [] },
+        methods: {
+            removePair: function (pair) {
+                pair.valid = pair.p1.visible = pair.p2.visible = pair.link.visible = false;
+                $("li.pair.invalid input").prop('disabled', true);
+            },
+            modified: function (pair) {
+                updatePair(pair);
+                // toastr.info(JSON.stringify(pair));
+            },
+            activate: function (pair) {
+                pair.active = true;
+            },
+            deactivate: function (pair) {
+            }
+        }
+    });
+    app.$mount('#app');
+
+    $("li.pair.invalid input").prop('disabled', true);
+
+    window.addEventListener('keydown', function(){
+        var code = event.keyCode;
+        var ctrl = event.ctrlKey;
+        if (16 <= code && code <= 18) { // just shift, control, alt
+            return;
+        }
+        switch (code) {
+
+            case 49: // 1
+                if (ctrl) {
+                    config.savePos1();
+                } else {
+                    config.loadPos1();
+                }
+                break;
+            case 50: // 2
+                if (ctrl) {
+                    config.savePos2();
+                } else {
+                    config.loadPos2();
+                }
+                break;
+
+            case 51: // 3
+                config.savePos1();
+                break;
+            case 52: // 4
+                config.savePos2();
+                break;
+
+            case 38: // up
+                config.pair[ctrl?"y2":"y1"] += 5;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+            case 40: // down
+                config.pair[ctrl?"y2":"y1"] -= 5;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+            case 37: // left
+                config.pair[ctrl?"x2":"x1"] -= 5;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+            case 39: // right
+                config.pair[ctrl?"x2":"x1"] += 5;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+
+            case 32: // space
+                config.editor.controls.enabled = !config.editor.controls.enabled;
+                break;
+            case 13: // enter
+                if (config.editor.controls.target.x !== 0) {
+                    config.editor.controls.target.setScalar(0);
+                } else {
+                    if (config.pair) {
+                        config.editor.controls.target.set((pair.x1+pair.x2)/2, (pair.y1+pair.y2)/2, 0);
+                    }
+                }
+                break;
+            default:
+                console.log("keyCode: "+event.keyCode);
+        }
+    }, false );
+
+    toastr.options = {
+        "positionClass": "toast-bottom-left"
+    };
+
+    function updatePair(pair) {
+        pair.p1.position.set(pair.x1, pair.y1, 0);
+        pair.p2.position.set(pair.x2, pair.y2, 0);
+        pair.link.geometry.vertices[0].set(pair.x1, pair.y1, config.group1.position.z);
+        pair.link.geometry.vertices[1].set(pair.x2, pair.y2, config.group2.position.z);
+        pair.link.geometry.verticesNeedUpdate = true;
+    }
+
+    function pushPair(pair) {
+        if (pair.valid === true) {
+            config.group1.add(pair.p1);
+            config.group2.add(pair.p2);
+            config.scene.add(pair.link);
+            config.pair = pair;
+            app.pairs.push(pair);
+        }
+    }
+
+    function setCursorStyle(style) {
+        $("body").removeClass();
+        if (style) {
+            $("body").addClass(style);
+        }
+    }
+
+    function newTriangle(a,b,c) { // a,b,c
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(a);
+        geometry.vertices.push(b);
+        geometry.vertices.push(c);
+        geometry.faces.push( new THREE.Face3( 0,1,2) );
+        var mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            side: THREE.DoubleSide
+        }));
+        return mesh;
+    }
+
+    function newPairTriangle(r1,r2,r3) {
+        var geometry = new THREE.Geometry();
+        var p1 = r1.p1.position;
+        var p2 = r2.p1.position;
+        var p3 = r3.p1.position;
+        geometry.vertices.push(new THREE.Vector3(p1.x,p1.y,0));
+        geometry.vertices.push(new THREE.Vector3(p2.x,p2.y,0));
+        geometry.vertices.push(new THREE.Vector3(p3.x,p3.y,0));
+        geometry.faces.push( new THREE.Face3( 0,1,2) );
+        var mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            side: THREE.DoubleSide
+        }));
+        mesh.pairs = [ r1,r2,r3 ];
+        mesh.updatePosition = function(alpha) {
+            var r1 = mesh.pairs[0],
+                r2 = mesh.pairs[1],
+                r3 = mesh.pairs[2];
+            var p1 = r1.p1.position.clone(); var p4 = r1.p2.position;
+            var p2 = r2.p1.position.clone(); var p5 = r2.p2.position;
+            var p3 = r3.p1.position.clone(); var p6 = r3.p2.position;
+            p1.lerp(p4, alpha);
+            p2.lerp(p5, alpha);
+            p3.lerp(p6, alpha);
+            mesh.geometry.vertices[0].copy(p1);
+            mesh.geometry.vertices[1].copy(p2);
+            mesh.geometry.vertices[2].copy(p3);
+            mesh.geometry.verticesNeedUpdate = true;
+        };
+        mesh.isPairTriangle = true;
+        return mesh;
+    }
+
 </script>
 </body>
 </html>
