@@ -266,6 +266,44 @@
     var Config = function() {
         var _this = this;
 
+        this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
+        this.helpers = [];
+        this.progress = 0.0;
+        this.updateTriangulation = function(value){
+            config.groupx.children.forEach(function(t){
+                if (t.isPairTriangle === true) {
+                    t.updatePosition(value);
+                }
+            });
+        };
+
+        var inProgress = function(f,t) {
+            return function() {
+                $(".close-button").click();
+                config.sphere.camera.fov = 50;
+                config.sphere.camera.lat = -8;
+                var t1 = new TWEEN.Tween(_this)
+                    .to({ progress: f }, 100)
+                    .onComplete(function(){ toastr.info("t1 done"); });
+
+                var t2 = new TWEEN.Tween(config.sphere.camera)
+                    .delay(100)
+                    .to({ lon: 175 }, 1000)
+                    .onComplete(function(){ toastr.info("t2 done"); });
+
+                var t3 = new TWEEN.Tween(_this)
+                    .delay(1000)
+                    .to({ progress: t }, 3000)
+                    .onComplete(function(){ toastr.info("t3 done"); });
+
+                t2.chain(t3);
+                t1.chain(t2);
+                t1.start();
+            };
+        };
+        this.forward  = inProgress(0.0, 1.0);
+        this.backward = inProgress(1.0, 0.0);
+
         this.applyTriangulation = function(){
             function pos2name(x, y) {
                 return x.toFixed(0)+"-"+y.toFixed(0);
@@ -299,11 +337,6 @@
                 var ref2 = refs[p2n];
                 var ref3 = refs[p3n];
                 if ( ref1 !== undefined && ref2 !== undefined && ref3 !== undefined ) {
-                    [ref1, ref2, ref3].forEach(function(r){
-                        r.p1.position.z += 100;
-                        r.p2.position.z -= 100;
-                    });
-                    toastr.info("Face3: "+(++index));
                     var mesh = newPairTriangle(ref1,ref2,ref3);
                     config.groupx.add(mesh);
                     faces.push(mesh);
@@ -438,7 +471,8 @@
         $sphere.appendTo($tabs[4]);
 
         camera.isUserInteracting = false;
-        camera.lon = camera.lat = 0;
+        camera.lon = 0;
+        camera.lat = 0;
         camera.onPointerDownPointerX = 0;
         camera.onPointerDownPointerY = 0;
         camera.onPointerDownLon = 0;
@@ -465,7 +499,7 @@
         }, false );
 
         var animate = function() {
-            window.requestAnimationFrame(animate);
+            // window.requestAnimationFrame(animate);
             texture.needsUpdate = true;
             if (camera.lon > 360) { camera.lon -= 360; }
             if (camera.lon <   0) { camera.lon += 360; }
@@ -494,6 +528,7 @@
             scene: scene,
             renderer: renderer,
             mesh: mesh,
+            animate: animate,
             applyCanvasTexture: function() {
                 texture.needsUpdate = true;
             },
@@ -535,21 +570,11 @@
         var gui = config.guis[0];
         $(gui.domElement).addClass('gui').appendTo( $tabs[0] );
         config.showHelpers = false;
-        gui.add(config, 'showHelpers').onChange(function(vis){
-            config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = vis;
-        }).name("调试");
+        // gui.add(config, 'showHelpers').onChange(function(vis){ config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = vis; }).name("调试");
 
         gui.add(config, 'savePairs').name("保存 Pairs");
         gui.add(config, 'loadPairs').name("加载 Pairs");
         gui.add(config, 'applyTriangulation').name("三角化");
-        config.alpha = 0;
-        gui.add(config, 'alpha').min(0.0).max(1.0).step(0.01).onChange(function(alpha){
-            config.groupx.children.forEach(function(t){
-                if (t.isPairTriangle === true) {
-                    t.updatePosition(alpha);
-                }
-            });
-        });
 
         var group1 = new THREE.Group();
         var group2 = new THREE.Group();
@@ -559,7 +584,7 @@
             var texture = new THREE.TextureLoader().load('images/texture1.jpg');
             texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
             var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
-            var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }); material.transparent = true;
             var mesh = new THREE.Mesh( geometry, material );
             group1.add(mesh);
             config.plane1 = mesh;
@@ -576,12 +601,6 @@
 
         group1.add(config.plane1);
         group2.add(config.plane2);
-
-        config.opacity = 1.0;
-        gui.add(config, 'opacity').min(0.0).max(1.0).step(0.01).onChange(function (value) {
-            config.plane1.material.transparent = true;
-            config.plane1.material.opacity = value;
-        }).name("透明度");
 
         scene.add(group1);
         scene.add(group2);
@@ -668,28 +687,42 @@
             groupx.position.z =  distance * 2;
         };
         config.applySpacing();
-        gui.add(controls, 'enabled').listen().name("关闭 OrbitControls");
-        gui.add(config, 'spacing').min(100).max(1000).step(10).listen().onChange(config.applySpacing).name("间距");
+
+        // gui.add(controls, 'enabled').listen().name("关闭 OrbitControls");
+        // gui.add(config, 'spacing').min(100).max(1000).step(10).listen().onChange(config.applySpacing).name("间距");
 
         config.shift = 0;
-        gui.add(config, 'shift').min(-2048).max(2048).step(1).listen().onChange(function(shift){
-            group2.position.x = shift;
-        }).name("偏移量");
-        gui.add(cameraOrtho.position, 'x').min(-2048).max(2048).step(1).name("X");
-        gui.add(cameraOrtho.position, 'z').min(-3000).max(+3000).step(1).name("Z");
+        // gui.add(config, 'shift').min(-2048).max(2048).step(1).listen().onChange(function(shift){ group2.position.x = shift; }).name("偏移量");
+        // gui.add(cameraOrtho.position, 'x').min(-2048).max(2048).step(1).name("X");
+        // gui.add(cameraOrtho.position, 'z').min(-3000).max(+3000).step(1).name("Z");
+
+        config.helpers.push(cameraOrthoHelper);
+        config.helpers.push(config.axisHelper);
 
         var animate = function(){
-            // shit
             window.requestAnimationFrame( animate );
+            TWEEN.update();
             cameraOrthoHelper.update();
             controls.update();
             renderer.render(scene, camera);
 
-            cameraOrthoHelper.visible = false;
-            config.axisHelper.visible = false;
+            {
+                // stash
+                config.plane1.material.opacity0 = config.plane1.material.opacity;
+                config.plane1.material.opacity = 1 - config.progress;
+                config.helpers.forEach(function(obj){ obj.visible = false; });
+                config.whiteFrameMaterial.opacity = 0;
+            }
             _renderer.render(scene, cameraOrtho);
-            cameraOrthoHelper.visible = true;
-            config.axisHelper.visible = true;
+            if (config.sphere !== undefined && config.sphere.animate !== undefined) {
+                config.sphere.animate();
+            }
+            {
+                // resume
+                config.helpers.forEach(function(obj){ obj.visible = true; });
+                config.plane1.material.opacity = config.plane1.material.opacity0;
+                config.whiteFrameMaterial.opacity = 1;
+            }
         };
         animate();
         config.editor = {
@@ -802,8 +835,13 @@
             config.group1.add(pair.p1);
             config.group2.add(pair.p2);
             config.scene.add(pair.link);
+            config.helpers.push(pair.p1);
+            config.helpers.push(pair.p2);
+            config.helpers.push(pair.link);
             config.pair = pair;
             app.pairs.push(pair);
+        } else {
+            toastr.warning("won't push invalid pair.");
         }
     }
 
@@ -814,53 +852,86 @@
         }
     }
 
-    function newTriangle(a,b,c) { // a,b,c
+    config.xy2uv = function (x,y) {
+        return new THREE.Vector2( (x/4096)+0.5, (y/2048)+0.5 );
+    };
+
+    var newTriangle = function(a,b,c) { // a,b,c
         var geometry = new THREE.Geometry();
         geometry.vertices.push(a);
         geometry.vertices.push(b);
         geometry.vertices.push(c);
-        geometry.faces.push( new THREE.Face3( 0,1,2) );
-        var mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            wireframe: true,
-            side: THREE.DoubleSide
-        }));
-        return mesh;
-    }
+        geometry.faces.push( new THREE.Face3(0,1,2) );
+        geometry.updatePosition = function (a,b,c) {
+            geometry.vertices[0].copy(a);
+            geometry.vertices[1].copy(b);
+            geometry.vertices[2].copy(c);
+            geometry.verticesNeedUpdate = true;
+        };
+        return geometry;
+    };
 
     function newPairTriangle(r1,r2,r3) {
-        var geometry = new THREE.Geometry();
-        var p1 = r1.p1.position;
-        var p2 = r2.p1.position;
-        var p3 = r3.p1.position;
-        geometry.vertices.push(new THREE.Vector3(p1.x,p1.y,0));
-        geometry.vertices.push(new THREE.Vector3(p2.x,p2.y,0));
-        geometry.vertices.push(new THREE.Vector3(p3.x,p3.y,0));
-        geometry.faces.push( new THREE.Face3( 0,1,2) );
-        var mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            wireframe: true,
-            side: THREE.DoubleSide
-        }));
-        mesh.pairs = [ r1,r2,r3 ];
-        mesh.updatePosition = function(alpha) {
-            var r1 = mesh.pairs[0],
-                r2 = mesh.pairs[1],
-                r3 = mesh.pairs[2];
-            var p1 = r1.p1.position.clone(); var p4 = r1.p2.position;
-            var p2 = r2.p1.position.clone(); var p5 = r2.p2.position;
-            var p3 = r3.p1.position.clone(); var p6 = r3.p2.position;
+
+        var group = new THREE.Group();
+        group.pairs = [ r1,r2,r3 ];
+
+        var p1 = r1.p1.position,
+            p2 = r2.p1.position,
+            p3 = r3.p1.position,
+            p4 = r1.p2.position,
+            p5 = r2.p2.position,
+            p6 = r3.p2.position;
+        var tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) ),
+            tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) ),
+            tri3 = newTriangle( p1.clone().setZ(  0), p2.clone().setZ(  0), p3.clone().setZ(  0) );
+        var mesh1 = new THREE.Mesh(tri1, config.plane1.material),
+            mesh2 = new THREE.Mesh(tri2, config.plane2.material),
+            mesh3 = new THREE.Mesh(tri3, config.whiteFrameMaterial);
+        group.add(mesh1).add(mesh2).add(mesh3);
+
+        mesh1.geometry.faceVertexUvs[0] = [];
+        mesh1.geometry.faceVertexUvs[0].push([
+            config.xy2uv(p1.x,p1.y),
+            config.xy2uv(p2.x,p2.y),
+            config.xy2uv(p3.x,p3.y)
+        ]);
+        mesh1.uvsNeedUpdate = true;
+
+        mesh2.geometry.faceVertexUvs[0] = [];
+        mesh2.geometry.faceVertexUvs[0].push([
+            config.xy2uv(p4.x,p4.y),
+            config.xy2uv(p5.x,p5.y),
+            config.xy2uv(p6.x,p6.y)
+        ]);
+        mesh2.uvsNeedUpdate = true;
+
+        group.tri1 = tri1;
+        group.tri2 = tri2;
+        group.tri3 = tri3;
+        group.updatePosition = function(alpha) {
+            var r1 = group.pairs[0],
+                r2 = group.pairs[1],
+                r3 = group.pairs[2];
+            var p1 = r1.p1.position.clone(), p4 = r1.p2.position,
+                p2 = r2.p1.position.clone(), p5 = r2.p2.position,
+                p3 = r3.p1.position.clone(), p6 = r3.p2.position;
             p1.lerp(p4, alpha);
             p2.lerp(p5, alpha);
             p3.lerp(p6, alpha);
-            mesh.geometry.vertices[0].copy(p1);
-            mesh.geometry.vertices[1].copy(p2);
-            mesh.geometry.vertices[2].copy(p3);
-            mesh.geometry.verticesNeedUpdate = true;
+            group.tri1.updatePosition(p1.clone().setZ(200),p2.clone().setZ(200),p3.clone().setZ(200));
+            group.tri2.updatePosition(p1.clone().setZ(100),p2.clone().setZ(100),p3.clone().setZ(100));
+            group.tri3.updatePosition(p1.clone().setZ(  0),p2.clone().setZ(  0),p3.clone().setZ(  0));
         };
-        mesh.isPairTriangle = true;
-        return mesh;
+        group.isPairTriangle = true;
+        return group;
     }
+
+    [config.guis[0], config.guis[4]].forEach(function(gui){
+        gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen().onChange(config.updateTriangulation).name("过渡");
+        gui.add(config, 'forward' ).name("前进");
+        gui.add(config, 'backward').name("后退");
+    });
 
 </script>
 </body>

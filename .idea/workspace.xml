@@ -24,8 +24,8 @@
       <file leaf-file-name="index.html" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/index.html">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="0">
-              <caret line="831" column="0" lean-forward="false" selection-start-line="831" selection-start-column="0" selection-end-line="831" selection-end-column="0" />
+            <state relative-caret-position="350">
+              <caret line="718" column="12" lean-forward="false" selection-start-line="718" selection-start-column="12" selection-end-line="718" selection-end-column="13" />
               <folding />
             </state>
           </provider>
@@ -45,8 +45,8 @@
         <entry file="file://$PROJECT_DIR$/README.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="FIRST">
-              <first_editor relative-caret-position="775">
-                <caret line="75" column="4" lean-forward="false" selection-start-line="75" selection-start-column="4" selection-end-line="75" selection-end-column="4" />
+              <first_editor relative-caret-position="725">
+                <caret line="76" column="4" lean-forward="false" selection-start-line="76" selection-start-column="4" selection-end-line="76" selection-end-column="4" />
                 <folding>
                   <marker date="1491653308957" expanded="true" signature="1007:1680" ph="{...}" />
                   <marker date="1491653308957" expanded="true" signature="1103:1653" ph="{...}" />
@@ -148,12 +148,12 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1491610931731</updated>
-      <workItem from="1491610933762" duration="51502000" />
+      <workItem from="1491610933762" duration="61520000" />
     </task>
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="51502000" />
+    <option name="totallyTimeSpent" value="61520000" />
   </component>
   <component name="ToolWindowManager">
     <frame x="-9" y="41" width="1938" height="1048" extended-state="6" />
@@ -192,9 +192,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="825">
           <caret line="45" column="15" lean-forward="false" selection-start-line="45" selection-start-column="15" selection-end-line="45" selection-end-column="15" />
-          <folding>
-            <element signature="n#!!doc" expanded="false" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -217,8 +215,8 @@
     <entry file="file://$PROJECT_DIR$/README.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="FIRST">
-          <first_editor relative-caret-position="775">
-            <caret line="75" column="4" lean-forward="false" selection-start-line="75" selection-start-column="4" selection-end-line="75" selection-end-column="4" />
+          <first_editor relative-caret-position="725">
+            <caret line="76" column="4" lean-forward="false" selection-start-line="76" selection-start-column="4" selection-end-line="76" selection-end-column="4" />
             <folding>
               <marker date="1491653308957" expanded="true" signature="1007:1680" ph="{...}" />
               <marker date="1491653308957" expanded="true" signature="1103:1653" ph="{...}" />
@@ -240,8 +238,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/index.html">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="0">
-          <caret line="831" column="0" lean-forward="false" selection-start-line="831" selection-start-column="0" selection-end-line="831" selection-end-column="0" />
+        <state relative-caret-position="350">
+          <caret line="718" column="12" lean-forward="false" selection-start-line="718" selection-start-column="12" selection-end-line="718" selection-end-column="13" />
           <folding />
         </state>
       </provider>
