@@ -192,7 +192,9 @@
         }
     };
 
-    var _renderer = new THREE.WebGLRenderer({ antialias: true });
+    var _renderer = new THREE.WebGLRenderer({
+        antialias: true,
+    });
     _renderer.setSize(4096, 2048);
 
     // x1, y1, x2, y2, u1, v1, u2, v2, valid, p1, p2, link
@@ -216,7 +218,7 @@
         var p1 = new THREE.Mesh( point, p1mat );
         var p2 = new THREE.Mesh( point, p2mat );
         var geometry = new THREE.Geometry();
-        var material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+        var material = new THREE.LineBasicMaterial( { color: 0x40e0d0 } );
         if (options.loading === true) {
             x1 = options.x1;
             x2 = options.x2;
@@ -271,9 +273,22 @@
     var Config = function() {
         var _this = this;
 
+        this.saveEditor = function() {
+            var url = config.editor.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+            window.open(url, '_blank');
+            window.focus();
+        };
+
+        this.saveSphere = function() {
+            var url = config.sphere.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+            window.open(url, '_blank');
+            window.focus();
+        };
+
         this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
         this.helpers = [];
         this.progress = 0.0;
+        this.processedProgress = -100;
         this.updateTriangulation = function(value){
             config.groupx.children.forEach(function(t){
                 if (t.isPairTriangle === true) {
@@ -355,8 +370,8 @@
         var pos2 = new THREE.Vector3();
 
         this.savePos1 = function() { pos1.copy(config.editor.camera.position); toastr.info("Pos1 Saved" ); };
-        this.savePos2 = function() { pos2.copy(config.editor.camera.position); toastr.info("Pos1 Loaded"); };
-        this.loadPos1 = function() { config.editor.camera.position.copy(pos1); toastr.info("Pos2 Saved" ); };
+        this.savePos2 = function() { pos2.copy(config.editor.camera.position); toastr.info("Pos2 Saved"); };
+        this.loadPos1 = function() { config.editor.camera.position.copy(pos1); toastr.info("Pos1 Loaded" ); };
         this.loadPos2 = function() { config.editor.camera.position.copy(pos2); toastr.info("Pos2 Loaded"); };
 
         this.savePairs = function() {
@@ -473,15 +488,19 @@
         var width = $tabs[4].width();
         var height = $tabs[4].height();
         var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
-        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        var renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
         renderer.setPixelRatio( window.devicePixelRatio );
         renderer.setSize(width, height);
         $sphere = $(renderer.domElement);
         $sphere.appendTo($tabs[4]);
 
         camera.isUserInteracting = false;
-        camera.lon = 170;
-        camera.lat = 0;
+        camera.lon = 169.89999999999998;
+        camera.lat = -3.3000000000000003;
         camera.onPointerDownPointerX = 0;
         camera.onPointerDownPointerY = 0;
         camera.onPointerDownLon = 0;
@@ -509,7 +528,14 @@
 
         var animate = function() {
             // window.requestAnimationFrame(animate);
-            texture.needsUpdate = true;
+            if (config.processedProgress !== config.progress) {
+                if (config.processedProgress < 0) {
+                    ++config.processedProgress;
+                } else {
+                    config.processedProgress = config.progress;
+                }
+                texture.needsUpdate = true;
+            }
             if (camera.lon > 360) { camera.lon -= 360; }
             if (camera.lon <   0) { camera.lon += 360; }
             camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
@@ -521,8 +547,10 @@
             camera.lookAt( camera.target.add(camera.position) );
             renderer.render(scene, camera);
         };
+        animate();
 
         var gui = config.guis[4];
+        gui.add(config, 'saveSphere').name("截图");
         gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
         gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
         gui.add(camera, 'fov').min(30).max(85).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
@@ -547,7 +575,6 @@
             },
             gui: gui
         };
-        animate();
     })();
 
     // d3
@@ -560,6 +587,7 @@
         var height = $tabs[0].height();
 
         var scene = new THREE.Scene();
+        // scene.background = new THREE.Color( 0xffffff );
         var light = new THREE.AmbientLight(0xffffff);
         scene.add(light);
 
@@ -570,7 +598,12 @@
         scene.add(config.axisHelper = new THREE.AxisHelper(10000));
         config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = config.axisHelper.visible = false;
 
-        var renderer = new THREE.WebGLRenderer({ antialias: true });
+        var renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
+        renderer.setClearColor( 0xffffff, 0);
         renderer.setPixelRatio( window.devicePixelRatio );
         renderer.setSize(width, height);
         $editor = $(renderer.domElement);
@@ -579,8 +612,8 @@
         var gui = config.guis[0];
         $(gui.domElement).addClass('gui').appendTo( $tabs[0] );
         config.showHelpers = false;
-        // gui.add(config, 'showHelpers').onChange(function(vis){ config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = vis; }).name("调试");
 
+        gui.add(config, 'saveEditor').name("截图");
         gui.add(config, 'savePairs').name("保存 Pairs");
         gui.add(config, 'loadPairs').name("加载 Pairs");
         gui.add(config, 'applyTriangulation').name("三角化");
@@ -679,6 +712,7 @@
         cameraOrtho.lookAt(scene.position);
         var cameraOrthoHelper = new THREE.CameraHelper( cameraOrtho );
         scene.add( cameraOrthoHelper );
+        config.cameraOrthoHelper = cameraOrthoHelper;
 
         /*
          gui
@@ -705,7 +739,6 @@
         // gui.add(cameraOrtho.position, 'x').min(-2048).max(2048).step(1).name("X");
         // gui.add(cameraOrtho.position, 'z').min(-3000).max(+3000).step(1).name("Z");
 
-        config.cameraOrthoHelper = cameraOrthoHelper;
         config.helpers.push(config.cameraOrthoHelper);
         config.helpers.push(config.axisHelper);
 
@@ -716,28 +749,38 @@
             controls.update();
             renderer.render(scene, camera);
 
-            {
-                // stash
-                config.plane1.material.opacity0 = config.plane1.material.opacity;
-                config.plane1.material.opacity = 1 - config.progress;
-                config.helpers.forEach(function(obj){ obj.visible = false; });
-                config.whiteFrameMaterial.opacity = 0;
+            // if haven't rendered this progress of texture, render it
+            if (config.progress !== config.processedProgress) {
+                {
+                    // stash
+                    config.plane1.material.opacity0 = config.plane1.material.opacity;
+                    config.plane1.material.opacity = 1 - config.progress;
+                    config.helpers.forEach(function(obj){
+                        obj.visible0 = obj.visible;
+                        obj.visible = false;
+                    });
+                    config.whiteFrameMaterial.opacity = 0;
+                }
+                _renderer.render(scene, cameraOrtho);
+                // console.log("rerendered texture.");
+                {
+                    // resume
+                    config.helpers.forEach(function(obj){
+                        obj.visible = obj.visible0 || true;
+                    });
+                    config.plane1.material.opacity = config.plane1.material.opacity0;
+                    config.whiteFrameMaterial.opacity = 1;
+                }
             }
-            _renderer.render(scene, cameraOrtho);
-            if (config.sphere !== undefined && config.sphere.animate !== undefined) {
-                config.sphere.animate();
-            }
-            {
-                // resume
-                config.helpers.forEach(function(obj){ obj.visible = true; });
-                config.plane1.material.opacity = config.plane1.material.opacity0;
-                config.whiteFrameMaterial.opacity = 1;
-            }
+            // render sphere
+            config.sphere.animate();
         };
         animate();
+
         config.editor = {
             scene: scene,
             camera: camera,
+            renderer: renderer,
             controls: controls
         };
     })();
@@ -746,7 +789,7 @@
         data: { pairs: [] },
         methods: {
             removePair: function (pair) {
-                pair.valid = pair.p1.visible = pair.p2.visible = pair.link.visible = false;
+                pair.valid = pair.p1.visible = pair.p2.isible = pair.link.visible = false;
                 $("li.pair.invalid input").prop('disabled', true);
             },
             modified: function (pair) {
@@ -819,6 +862,7 @@
                     config.editor.controls.target.setScalar(0);
                 } else {
                     if (config.pair) {
+                        var pair = config.pair;
                         config.editor.controls.target.set((pair.x1+pair.x2)/2, (pair.y1+pair.y2)/2, 0);
                     }
                 }
@@ -955,6 +999,15 @@
     $.get('pairs.json', function(data) {
         config.loadPairsTxt(data);
     }, 'text');
+
+    function setProgress(value) {
+        config.progress = value;
+        config.updateTriangulation(value);
+        setTimeout(function() {
+            // config.saveEditor();
+            config.saveSphere();
+        }, 1000);
+    }
 
 </script>
 </body>
