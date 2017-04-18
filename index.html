@@ -289,12 +289,27 @@
         this.helpers = [];
         this.progress = 0.0;
         this.processedProgress = -100;
-        this.updateTriangulation = function(value){
-            config.groupx.children.forEach(function(t){
-                if (t.isPairTriangle === true) {
-                    t.updatePosition(value);
+        this.updateTriangulation = (function () {
+            var lastValue = -1;
+            return function(value){
+                if (lastValue !== value) {
+                    lastValue = value;
+                    config.groupx.children.forEach(function(t){
+                        if (t.isPairTriangle === true) {
+                            t.updatePosition(value);
+                        }
+                    });
                 }
-            });
+            }
+        })();
+
+        this.debug = false;
+        this.debug1 = function() {
+            $(".close-button").click();
+            var t1 = new TWEEN.Tween(_this)
+                .delay(10000)
+                .to({ progress: 1.0 }, 5000);
+            t1.start();
         };
 
         var inProgress = function(f,t) {
@@ -547,7 +562,6 @@
             camera.lookAt( camera.target.add(camera.position) );
             renderer.render(scene, camera);
         };
-        animate();
 
         var gui = config.guis[4];
         gui.add(config, 'saveSphere').name("截图");
@@ -746,7 +760,16 @@
             window.requestAnimationFrame( animate );
             TWEEN.update();
             cameraOrthoHelper.update();
+            if (config.debug === true) {
+                [config.cameraOrthoHelper, config.axisHelper].forEach(function(obj){
+                    obj.visible = false;
+                });
+            }
+
             controls.update();
+
+            config.updateTriangulation(config.progress);
+
             renderer.render(scene, camera);
 
             // if haven't rendered this progress of texture, render it
@@ -945,9 +968,16 @@
             p4 = r1.p2.position,
             p5 = r2.p2.position,
             p6 = r3.p2.position;
-        var tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) ),
-            tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) ),
+        var tri1, tri2, tri3;
+        if (config.debug === true) {
+            tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) );
+            tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) );
+            tri3 = newTriangle( p1.clone().setZ(201), p2.clone().setZ(201), p3.clone().setZ(201) );
+        } else {
+            tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) );
+            tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) );
             tri3 = newTriangle( p1.clone().setZ(  0), p2.clone().setZ(  0), p3.clone().setZ(  0) );
+        }
         var mesh1 = new THREE.Mesh(tri1, config.plane1.material),
             mesh2 = new THREE.Mesh(tri2, config.plane2.material),
             mesh3 = new THREE.Mesh(tri3, config.whiteFrameMaterial);
@@ -984,14 +1014,20 @@
             p3.lerp(p6, alpha);
             group.tri1.updatePosition(p1.clone().setZ(200),p2.clone().setZ(200),p3.clone().setZ(200));
             group.tri2.updatePosition(p1.clone().setZ(100),p2.clone().setZ(100),p3.clone().setZ(100));
-            group.tri3.updatePosition(p1.clone().setZ(  0),p2.clone().setZ(  0),p3.clone().setZ(  0));
+            if (config.debug === true) {
+                group.tri3.updatePosition(p1.clone().setZ(201),p2.clone().setZ(201),p3.clone().setZ(201));
+            } else {
+                group.tri3.updatePosition(p1.clone().setZ(  0),p2.clone().setZ(  0),p3.clone().setZ(  0));
+            }
         };
         group.isPairTriangle = true;
         return group;
     }
 
     [config.guis[0], config.guis[4]].forEach(function(gui){
-        gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen().onChange(config.updateTriangulation).name("过渡");
+        gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen();
+        // gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen().onChange(config.updateTriangulation).name("过渡");
+        gui.add(config, 'debug1').name("调试");
         // gui.add(config, 'forward' ).name("前进");
         // gui.add(config, 'backward').name("后退");
     });
@@ -1005,10 +1041,9 @@
         config.updateTriangulation(value);
         setTimeout(function() {
             // config.saveEditor();
-            config.saveSphere();
+            // config.saveSphere();
         }, 1000);
     }
-
 </script>
 </body>
 </html>
