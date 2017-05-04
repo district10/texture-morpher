@@ -97,26 +97,21 @@
 
 <div class="main-panel"><ul>
     <li><a href="#tabs-0">Editor</a></li>
-    <li><a href="#tabs-1">Image1</a></li>
-    <li><a href="#tabs-2">Image2</a></li>
-    <li><a href="#tabs-3">Canvas</a></li>
+    <li><a href="#tabs-1">T1</a></li>
+    <li><a href="#tabs-2">T2</a></li>
+    <li><a href="#tabs-3">Tx</a></li>
     <li><a href="#tabs-4">Sphere</a></li>
-    <li><a href="#tabs-5">Help</a></li></ul>
+    <li><a href="#tabs-5">SPHERE</a></li>
+    <li><a href="#tabs-6">Help</a></li></ul>
     <div id="tabs-0" class="tab"></div>
-    <div id="tabs-1" class="tab">
-        <img id="image1" class="image" src="images/texture1.jpg" alt="image1" />
-    </div>
-    <div id="tabs-2" class="tab">
-        <img id="image2" class="image" src="images/texture2.jpg" alt="image2" />
-    </div>
-    <div id="tabs-3" class="tab">
-        <canvas id="canvas"></canvas>
-    </div>
+    <div id="tabs-1" class="tab"><img id="image1" class="image" src="images/texture1.jpg" alt="image1" /></div>
+    <div id="tabs-2" class="tab"><img id="image2" class="image" src="images/texture2.jpg" alt="image2" /></div>
+    <div id="tabs-3" class="tab"><canvas id="canvas"></canvas></div>
     <div id="tabs-4" class="tab"></div>
-    <div id="tabs-5" class="tab"><pre><code>
-        先点击【三角化】，再点击【过渡】。
-    </pre></code>
-    </div>
+    <div id="tabs-5" class="tab"></div>
+    <div id="tabs-6" class="tab"><pre><code>
+        TODO, write doc.
+    </code></pre></div>
 </div>
 <div class="sidebar" id="app">
     <div class="header">Pair List</div>
@@ -151,11 +146,70 @@
 <script src="js/vue.js"></script>
 <!--<script src="js/object.watch.js"></script>-->
 <script src="js/utils.js"></script>
+<script>
+    "use script";
+    function lerp(a,b,t) {
+        return (1-t)*a+t*b;
+    }
+    function pos2name(x, y) {
+        return x.toFixed(0)+"-"+y.toFixed(0);
+    }
+    function pos2vec(x, y, r) {
+        var xyz = Util.lonlat2xyz(x/4096*360-180,y/2048*180, r);
+        return new THREE.Vector3(xyz.x, xyz.y, xyz.z);
+    }
+    function vec2pos(v) {
+        var lonlat = Util.xyz2lonlat(v.x,v.y,v.z);
+        return new THREE.Vector2(
+            (lonlat.lon/360-0.5)*4096,
+            lonlat.lat/180*2048
+        );
+    }
+    function pack(r, ref1, ref2, ref3) {
+        var ret = {};
+        var r1 = new THREE.Vector2(ref1.x1, ref1.y1),
+            r2 = new THREE.Vector2(ref2.x1, ref2.y1),
+            r3 = new THREE.Vector2(ref3.x1, ref3.y1),
+            r1p = new THREE.Vector2(ref1.x2, ref1.y2),
+            r2p = new THREE.Vector2(ref2.x2, ref2.y2),
+            r3p = new THREE.Vector2(ref3.x2, ref3.y2);
+        ret.from = new THREE.Vector2(r.x, r.y);
+        ret.barycentric = Util.cartesian2barycentric(r,r1,r2,r3);
+        ret.to = Util.barycentric2cartesian(ret.barycentric,r1p,r2p,r3p);
+        return ret;
+    }
+</script>
 
 <script>
     "use strict";
 
     var raycaster = new THREE.Raycaster();
+    var castFace3 = function ( point, camera ) {
+        var objects = config.SPHERE.group.children;
+        var mouse = new THREE.Vector2( ( point.x * 2 ) - 1, - ( point.y * 2 ) + 1  );
+        raycaster.setFromCamera( mouse, camera );
+        var hit = raycaster.intersectObjects( objects, true );
+        if ( hit.length > 0) {
+            var o = hit[0];
+            var obj = o.object;
+            obj.material = config.redFrameMaterial;
+        }
+    };
+    var castFace3FromVertex = function (v,i) {
+        var objects = config.SPHERE.group.children;
+        var sphere = config.SPHERE.s1;
+        raycaster.ray.origin.copy(sphere.position);
+        raycaster.ray.direction.copy(v.normalize());
+        var hit = raycaster.intersectObjects( objects, true );
+        if ( hit.length > 0) {
+            var o = hit[0];
+            var obj = o.object;
+            obj.material = config.redFrameMaterial;
+            return obj;
+        } else {
+            return null;
+        }
+    };
     var cast = function ( point, camera, mode ) {
         var objects = [config.group1, config.group2];
         var mouse = new THREE.Vector2( ( point.x * 2 ) - 1, - ( point.y * 2 ) + 1  );
@@ -203,6 +257,8 @@
     var p2mat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
 
     (function(){
+        return;
+        // code fragments
         var geometry = new THREE.SphereGeometry( 20, 64, 32 );
         var pxmat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide } );
         var geometry = new THREE.Geometry();
@@ -273,6 +329,9 @@
     var Config = function() {
         var _this = this;
 
+        this.sphereProgress = 0.0;
+        this.sphereCarts = [];
+
         this.saveEditor = function() {
             var url = config.editor.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
             window.open(url, '_blank');
@@ -284,8 +343,40 @@
             window.open(url, '_blank');
             window.focus();
         };
+        this.saveSPHERE = function() {
+            var url = config.SPHERE.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+            window.open(url, '_blank');
+            window.focus();
+        };
+
+        this.logVertexOfSPHERE = function() {
+            config.sphereCarts = [];
+            config.SPHERE.s1.geometry.vertices.forEach(function(v,i){
+                var obj = castFace3FromVertex(v,i);
+                if (obj) {
+                    var lonlat = Util.xyz2lonlat(v.x,v.y,v.z);
+                    var r = vec2pos(v);
+                    var r1 = obj.r1;
+                    var ret = pack(r, obj.r1, obj.r2, obj.r3);
+                    v.info = ret;
+                    v.lerpAndApply = function(t) {
+                        var from = v.info.from,
+                            to = v.info.to;
+                        var pos = new THREE.Vector2(
+                            lerp(from.x,to.x,t),
+                            lerp(from.y,to.y,t)
+                        );
+                        var position = pos2vec(pos.x, pos.y, v.length());
+                        console.log("lerping "+JSON.stringify(v));
+                        v.copy(position);
+                    };
+                    config.sphereCarts.push(v);
+                }
+            });
+        };
 
         this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
+        this.redFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, side: THREE.DoubleSide, transparent: true });
         this.helpers = [];
         this.progress = 0.0;
         this.processedProgress = -100;
@@ -340,14 +431,12 @@
         this.backward = inProgress(1.0, 0.0);
 
         this.applyTriangulation = function(){
-            function pos2name(x, y) {
-                return x.toFixed(0)+"-"+y.toFixed(0);
-            }
             var sites = [];
             var refs = {};
             var faces = [];
             var xmin = 100000000, xmax = 0, ymin = 10000000000, ymax = 0;
             app.pairs.forEach(function(pair){
+                // only process valid & visible pairs
                 if (pair.valid && pair.p1.visible) {
                     var p = [pair.x1, pair.y1];
                     refs[pos2name(p[0],p[1])] = pair;
@@ -363,6 +452,7 @@
             var triangles = diagram.triangles();
             var index = 0;
             config.groupx.children = [];
+            config.SPHERE.group.children = [];
             triangles.forEach(function(tri){
                 var p1 = tri[0];
                 var p2 = tri[1];
@@ -374,9 +464,16 @@
                 var ref2 = refs[p2n];
                 var ref3 = refs[p3n];
                 if ( ref1 !== undefined && ref2 !== undefined && ref3 !== undefined ) {
+                    // editor
                     var mesh = newPairTriangle(ref1,ref2,ref3);
                     config.groupx.add(mesh);
                     faces.push(mesh);
+
+                    // SPHERE
+                    var face3 = triangleOnSphere(ref1,ref2,ref3, 200);
+                    config.SPHERE.group.add(face3);
+                } else {
+                    console.log("bug!");
                 }
             });
         };
@@ -418,6 +515,11 @@
             });
         };
         this.loadPairs = Util.fileInputReadAsText(_this.loadPairsJSON);
+        this.loadDefaultPairs = function() {
+            $.get('pairs.json', function(data) {
+                config.loadPairsTxt(data);
+            }, 'text');
+        };
 
         this.CastMode = {
             GetPosition: 1,
@@ -444,20 +546,27 @@
         };
         this.loadTexture1 = loadTexture(function(src){
             $image1[0].src = src;
+            // todo, apply texture 1
+            config.plane1.material.map.image.src = src;
+            config.plane1.material.map.needsUpdate = true;
         });
         this.loadTexture2 = loadTexture(function(src){
             $image2[0].src = src;
+            // todo, apply texture 2
+            config.plane2.material.map.image.src = src;
+            config.plane2.material.map.needsUpdate = true;
         });
         this.guis = [];
     };
     var config = new Config();
 
-    var $editor, $sphere;
+    var $editor, $sphere, $SPHERE;
     var $image1 = $("#image1");
     var $image2 = $("#image2");
     var $canvas = $("#canvas");
     $canvas.hide();
-    var $tabs = [ $("#tabs-0"), $("#tabs-1"), $("#tabs-2"), $("#tabs-3"), $("#tabs-4") ];
+    //                  editor          t1             t2            tx             Sphere        SPHERE
+    var $tabs = [ $("#tabs-0"), $("#tabs-1"), $("#tabs-2"), $("#tabs-3"), $("#tabs-4"), $("#tabs-5") ];
     $(_renderer.domElement).appendTo($tabs[3]);
 
     // gui for each tab
@@ -468,7 +577,7 @@
             $(gui.domElement).addClass('gui').appendTo( $tab );
             config.guis[index] = gui;
         });
-    })([0,1,2,3,4]);
+    })([0,1,2,3,4,5]);
 
     config.guis[1].add(config, 'loadTexture1').name("加载图片");
     config.guis[2].add(config, 'loadTexture2').name("加载图片");
@@ -476,7 +585,6 @@
     $canvas[0].width = 1024;
     $canvas[0].height = 512;
     var ctx = $canvas[0].getContext('2d');
-
     var draw1Image = function(image) {
         ctx.clearRect( 0, 0, image.width, image.height );
         ctx.drawImage(image, 0, 0);
@@ -502,7 +610,6 @@
 
         var width = $tabs[4].width();
         var height = $tabs[4].height();
-        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
         var renderer = new THREE.WebGLRenderer({
             antialias: true,
             alpha: true,
@@ -513,6 +620,7 @@
         $sphere = $(renderer.domElement);
         $sphere.appendTo($tabs[4]);
 
+        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
         camera.isUserInteracting = false;
         camera.lon = 169.89999999999998;
         camera.lat = -3.3000000000000003;
@@ -521,7 +629,6 @@
         camera.onPointerDownLon = 0;
         camera.onPointerDownLat = 0;
         camera.target = new THREE.Vector3( 0, 0, 0 );
-
         renderer.domElement.addEventListener( 'mousedown', function(event) {
             $sphere.addClass("mousedown");
             camera.isUserInteracting = true;
@@ -591,9 +698,6 @@
         };
     })();
 
-    // d3
-    (function(){
-    })();
 
     // editor
     (function(){
@@ -601,7 +705,6 @@
         var height = $tabs[0].height();
 
         var scene = new THREE.Scene();
-        // scene.background = new THREE.Color( 0xffffff );
         var light = new THREE.AmbientLight(0xffffff);
         scene.add(light);
 
@@ -627,9 +730,11 @@
         $(gui.domElement).addClass('gui').appendTo( $tabs[0] );
         config.showHelpers = false;
 
+        gui.add(config, 'debug').listen().name("调试");
         gui.add(config, 'saveEditor').name("截图");
         gui.add(config, 'savePairs').name("保存 Pairs");
         gui.add(config, 'loadPairs').name("加载 Pairs");
+        gui.add(config, 'loadDefaultPairs').name("加载示例 Pairs");
         gui.add(config, 'applyTriangulation').name("三角化");
 
         var group1 = new THREE.Group();
@@ -701,7 +806,6 @@
                 var position = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPosition );
                 if (position) {
                     point.position.set(position.x, position.y, 0);
-                    // shitshit
                     var pair = point.pair;
                     pair.link.geometry.vertices[0].set(pair.p1.position.x, pair.p1.position.y, config.group1.position.z);
                     pair.link.geometry.vertices[1].set(pair.p2.position.x, pair.p2.position.y, config.group2.position.z);
@@ -957,6 +1061,26 @@
         return geometry;
     };
 
+    function triangleOnSphere(r1,r2,r3,r) {
+        var r = r || 200;
+        var v1 = pos2vec(r1.x1, r1.y1, r);
+        var v2 = pos2vec(r2.x1, r2.y1, r);
+        var v3 = pos2vec(r3.x1, r3.y1, r);
+        var geometry = newTriangle(v1, v2, v3);
+        var face3 = new THREE.Mesh(geometry, config.whiteFrameMaterial);
+        face3.r1 = r1;
+        face3.r2 = r2;
+        face3.r3 = r3;
+        face3.r = r;
+        face3.lerpAndApply = function(t) {
+            var v1 = pos2vec(lerp(face3.r1.x1,face3.r1.x2,t),lerp(face3.r1.y1,face3.r1.y2,t),face3.r);
+            var v2 = pos2vec(lerp(face3.r2.x1,face3.r2.x2,t),lerp(face3.r2.y1,face3.r2.y2,t),face3.r);
+            var v3 = pos2vec(lerp(face3.r3.x1,face3.r3.x2,t),lerp(face3.r3.y1,face3.r3.y2,t),face3.r);
+            geometry.updatePosition(v1,v2,v3);
+        };
+        return face3;
+    }
+
     function newPairTriangle(r1,r2,r3) {
 
         var group = new THREE.Group();
@@ -1032,9 +1156,11 @@
         // gui.add(config, 'backward').name("后退");
     });
 
-    $.get('pairs.json', function(data) {
-        config.loadPairsTxt(data);
-    }, 'text');
+    /*
+     $.get('pairs.json', function(data) {
+     config.loadPairsTxt(data);
+     }, 'text');
+    */
 
     function setProgress(value) {
         config.progress = value;
@@ -1044,6 +1170,138 @@
             // config.saveSphere();
         }, 1000);
     }
+
+    // SPHERE
+    (function () {
+        var width  = $tabs[5].width(); // SPHERE
+        var height = $tabs[5].height();
+        var g0 = new THREE.SphereGeometry( 300, 64, 32 ); g0.scale( - 1, 1, 1 );
+        var g1 = new THREE.SphereGeometry( 400, 64, 32 ); g1.scale( - 1, 1, 1 );
+        var g2 = new THREE.SphereGeometry( 500, 64, 32 ); g2.scale( - 1, 1, 1 );
+        var m0 = new THREE.MeshBasicMaterial({ wireframe: true });
+        var m1 = new THREE.MeshBasicMaterial({ map: config.plane1.material.map }); m1.transparent = true;
+        var m2 = new THREE.MeshBasicMaterial({ map: config.plane2.material.map }); m2.transparent = false;
+        var s0 = new THREE.Mesh(g0, m0); s0.visible = false;
+        var s1 = new THREE.Mesh(g1, m1);
+        var s2 = new THREE.Mesh(g2, m2);
+        var scene = new THREE.Scene();
+        scene.add(s0);
+        scene.add(s1);
+        scene.add(s2);
+
+        var group = new THREE.Group();
+        scene.add(group);
+
+        var renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+        $SPHERE = $(renderer.domElement);
+        $SPHERE.appendTo($tabs[5]);
+
+        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
+        camera.isUserInteracting = false;
+        camera.lon = 0;
+        camera.lat = 0;
+        camera.onPointerDownPointerX = 0;
+        camera.onPointerDownPointerY = 0;
+        camera.onPointerDownLon = 0;
+        camera.onPointerDownLat = 0;
+        camera.target = new THREE.Vector3( 0, 0, 0 );
+        var controls = new THREE.OrbitControls( camera, renderer.domElement );
+        controls.enabled = false;
+        renderer.domElement.addEventListener( 'mousedown', function(event) {
+            $SPHERE.addClass("mousedown");
+            camera.isUserInteracting = true;
+            camera.onPointerDownPointerX = event.clientX;
+            camera.onPointerDownPointerY = event.clientY;
+            camera.onPointerDownLon = camera.lon;
+            camera.onPointerDownLat = camera.lat;
+            var x0 = 348, x1 = 1146; var y0 = 150, y1 =  673; // just get it over
+            var array = [(event.clientX-x0)/(x1-x0), (event.clientY-y0)/(y1-y0)];
+            castFace3(new THREE.Vector2().fromArray(array), camera);
+        }, false );
+        renderer.domElement.addEventListener( 'mousemove', function(event) {
+            if ( camera.isUserInteracting === true ) {
+                camera.lon = ( camera.onPointerDownPointerX - event.clientX ) * 0.1 + camera.onPointerDownLon;
+                camera.lat = ( event.clientY - camera.onPointerDownPointerY ) * 0.1 + camera.onPointerDownLat;
+            }
+        }, false );
+        renderer.domElement.addEventListener( 'mouseup', function(event) {
+            $SPHERE.removeClass("mousedown");
+            camera.isUserInteracting = false;
+        }, false );
+        var animate = function() {
+            window.requestAnimationFrame(animate);
+            if (config.processedProgress !== config.progress) {
+                if (config.processedProgress < 0) {
+                    ++config.processedProgress;
+                } else {
+                    config.processedProgress = config.progress;
+                }
+            }
+            if (controls.enabled) {
+                controls.update();
+            } else {
+                if (camera.lon > 360) { camera.lon -= 360; }
+                if (camera.lon <   0) { camera.lon += 360; }
+                camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
+                var phi = THREE.Math.degToRad( 90 - camera.lat );
+                var theta = THREE.Math.degToRad( camera.lon );
+                camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+                camera.target.y = 500 * Math.cos( phi );
+                camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+                camera.lookAt( camera.target.add(camera.position) );
+            }
+            renderer.render(scene, camera);
+        };
+        animate();
+
+        var gui = config.guis[5];
+        gui.add(config, 'saveSPHERE').name("截图");
+        gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
+        gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
+        gui.add(camera, 'fov').min(30).max(85).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
+        gui.add(s0, 'visible').listen().name("显示 wireframe");
+        gui.add(m1, 'opacity').min(0).max(1).step(0.01).listen().name("S1 Opacity");
+        gui.add(m2, 'opacity').min(0).max(1).step(0.01).listen().name("S2 Opacity");
+        gui.add(config, 'sphereProgress').min(0).max(1).step(0.01).listen().name("变形").onChange(function(t){
+            /*
+            config.SPHERE.group.children.forEach(function(face3){
+                if (face3.lerpAndApply !== undefined) {
+                    face3.lerpAndApply(t);
+                }
+            });
+            */
+            config.sphereCarts.forEach(function(v){
+                v.lerpAndApply(t);
+            });
+            config.SPHERE.s1.geometry.verticesNeedUpdate = true;
+        });
+        gui.add(config, 'logVertexOfSPHERE').name("logVertics");
+        renderer.domElement.addEventListener( 'wheel', function(event) {
+            var fov = camera.fov + event.deltaY * 0.05;
+            camera.fov = THREE.Math.clamp(Math.round(fov), 30, 85);
+            camera.updateProjectionMatrix();
+        }, false );
+        config.SPHERE = {
+            s0: s0,
+            s1: s1,
+            s2: s2,
+            group: group,
+            camera: camera,
+            renderer: renderer,
+            controls: controls
+        };
+    })();
+
+    // d3
+    (function(){
+    })();
+
 </script>
 </body>
 </html>

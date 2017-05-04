@@ -150,7 +150,27 @@ var _Util = function() {
             "lon": THREE.Math.radToDeg(theta),
             "lat": 90 - THREE.Math.radToDeg(phi)
         };
-    }
+    };
+
+    this.barycentric2cartesian = function(bc,r1,r2,r3) {
+        var a1 = bc.x, a2 = bc.y, a3 = 1-a1-a2;
+        return new THREE.Vector2(
+            a1*r1.x + a2*r2.x + a3*r3.x,
+            a1*r1.y + a2*r2.y + a3*r3.y
+        );
+    };
+
+    this.cartesian2barycentric = function(car,r1,r2,r3) {
+        var x1 = r1.x, y1 = r1.y,
+            x2 = r2.x, y2 = r2.y,
+            x3 = r3.x, y3 = r3.y,
+            x = car.x, y = car.y;
+        var denom = (y2-y3)*(x1-x3)+(x3-x2)*(y1-y3);
+        return new THREE.Vector2(
+            ((y2-y3)*(x-x3)+(x3-x2)*(y-y3)) / denom,
+            ((y3-y1)*(x-x3)+(x1-x3)*(y-y3)) / denom
+        );
+    };
 
     this.useIntrusiveUtils = function() {
         // new Number(23).toRad()
