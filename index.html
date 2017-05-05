@@ -109,9 +109,7 @@
     <div id="tabs-3" class="tab"><canvas id="canvas"></canvas></div>
     <div id="tabs-4" class="tab"></div>
     <div id="tabs-5" class="tab"></div>
-    <div id="tabs-6" class="tab"><pre><code>
-        TODO, write doc.
-    </code></pre></div>
+    <div id="tabs-6" class="tab"><a target="_blank" href="README.html">见文档</a></div>
 </div>
 <div class="sidebar" id="app">
     <div class="header">Pair List</div>
@@ -539,8 +537,8 @@
             });
         };
 
-        var pos1 = new THREE.Vector3();
-        var pos2 = new THREE.Vector3();
+        var pos1 = new THREE.Vector3(1000,0,0);
+        var pos2 = new THREE.Vector3(1000,0,0);
 
         this.savePos1 = function() { pos1.copy(config.editor.camera.position); toastr.info("Pos1 Saved" ); };
         this.savePos2 = function() { pos2.copy(config.editor.camera.position); toastr.info("Pos2 Saved"); };
