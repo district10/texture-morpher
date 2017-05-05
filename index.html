@@ -151,6 +151,11 @@
     function lerp(a,b,t) {
         return (1-t)*a+t*b;
     }
+    function lerpDirection(v1,v2,t) {
+        var angle = v1.angleTo(v2);
+        var axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        return v1.clone().applyAxisAngle(axis, angle*t).normalize();
+    }
     function pos2name(x, y) {
         return x.toFixed(0)+"-"+y.toFixed(0);
     }
@@ -178,6 +183,39 @@
         ret.to = Util.barycentric2cartesian(ret.barycentric,r1p,r2p,r3p);
         return ret;
     }
+    function baryFromCartInFace3(face3, cart) {
+        return THREE.Triangle.barycoordFromPoint(cart,
+            face3.geometry.vertices[0],
+            face3.geometry.vertices[1],
+            face3.geometry.vertices[2]
+        );
+    }
+    function cartFromBaryInTriangle(tri, bary) {
+        var x = bary.x*tri.a.x + bary.y*tri.b.x + bary.z*tri.c.x;
+        var y = bary.x*tri.a.y + bary.y*tri.b.y + bary.z*tri.c.y;
+        var z = bary.x*tri.a.z + bary.y*tri.b.z + bary.z*tri.c.z;
+        return new THREE.Vector3(x,y,z);
+    }
+    function tweetTexture(obj, index, uv) {
+        var ws = obj.geometry.parameters.widthSegments;
+        var hs = obj.geometry.parameters.heightSegments;
+        var i = parseInt(index/(ws+1)),
+            j = parseInt(index%(ws+1));
+        if (i <= 0 || i >= hs || j <= 0 || j >= ws) {
+            console.log("margin!: "+i+", "+j);
+            return;
+        }
+
+        var m = ((i)-1)*2 * (ws) + (j)*2 - 1,
+            n = m + (ws)*2 +1;
+        obj.geometry.faceVertexUvs[0][m  ][1].copy(uv); // b
+        obj.geometry.faceVertexUvs[0][m+1][1].copy(uv); // b
+        obj.geometry.faceVertexUvs[0][m+2][0].copy(uv); // a
+
+        obj.geometry.faceVertexUvs[0][n  ][0].copy(uv); // a
+        obj.geometry.faceVertexUvs[0][n-1][2].copy(uv); // c
+        obj.geometry.faceVertexUvs[0][n-2][2].copy(uv); // c
+    }
 </script>
 
 <script>
@@ -199,12 +237,12 @@
         var objects = config.SPHERE.group.children;
         var sphere = config.SPHERE.s1;
         raycaster.ray.origin.copy(sphere.position);
-        raycaster.ray.direction.copy(v.normalize());
+        raycaster.ray.direction.copy(v.clone().normalize());
         var hit = raycaster.intersectObjects( objects, true );
         if ( hit.length > 0) {
             var o = hit[0];
             var obj = o.object;
-            obj.material = config.redFrameMaterial;
+            // obj.material = config.redFrameMaterial;
             return obj;
         } else {
             return null;
@@ -253,8 +291,10 @@
 
     // x1, y1, x2, y2, u1, v1, u2, v2, valid, p1, p2, link
     var point = new THREE.SphereGeometry( 10, 64, 32 );
+    var smallPoint = new THREE.SphereGeometry( 2, 32, 16 );
     var p1mat = new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSide } );
     var p2mat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
+    var pxmat = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );
 
     (function(){
         return;
@@ -329,6 +369,9 @@
     var Config = function() {
         var _this = this;
 
+        this.minFov = 10;
+        this.maxFov = 150;
+
         this.sphereProgress = 0.0;
         this.sphereCarts = [];
 
@@ -351,13 +394,30 @@
 
         this.logVertexOfSPHERE = function() {
             config.sphereCarts = [];
+            config.SPHERE.groupX.children = [];
             config.SPHERE.s1.geometry.vertices.forEach(function(v,i){
                 var obj = castFace3FromVertex(v,i);
-                if (obj) {
-                    var lonlat = Util.xyz2lonlat(v.x,v.y,v.z);
-                    var r = vec2pos(v);
-                    var r1 = obj.r1;
-                    var ret = pack(r, obj.r1, obj.r2, obj.r3);
+                if (obj && obj.r1 !== undefined && obj.r2 !== undefined && obj.r3 !== undefined) {
+                    var info = pack(vec2pos(v), obj.r1, obj.r2, obj.r3);
+                    var from = new THREE.Mesh( smallPoint, p1mat ); from.position.copy(v).setLength(200);
+                    var cur   = new THREE.Mesh( smallPoint, pxmat ); cur.position.copy(v).setLength(200);
+                    var bary = baryFromCartInFace3(obj, v);
+                    var to   = new THREE.Mesh( smallPoint, p2mat );
+                    var toposition = cartFromBaryInTriangle(obj.triangleAtT(1), bary);
+                    to.position.copy(toposition).setLength(200);
+                    // set toposition uv coord at ith node (3 triangles)
+                    tweetTexture(config.SPHERE.s2, i, Util.xyz2uv(v.x,v.y,v.z));
+                    config.sphereCarts.push({
+                        index: i,
+                        info: info,
+                        from: from,
+                        to: to,
+                        cur: cur
+                    });
+                    config.SPHERE.groupX.add(from);
+                    config.SPHERE.groupX.add(cur);
+                    config.SPHERE.groupX.add(to);
+                    /*
                     v.info = ret;
                     v.lerpAndApply = function(t) {
                         var from = v.info.from,
@@ -370,9 +430,10 @@
                         console.log("lerping "+JSON.stringify(v));
                         v.copy(position);
                     };
-                    config.sphereCarts.push(v);
+                    */
                 }
             });
+            config.SPHERE.s2.geometry.uvsNeedUpdate = true;
         };
 
         this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
@@ -674,10 +735,10 @@
         gui.add(config, 'saveSphere').name("截图");
         gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
         gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
-        gui.add(camera, 'fov').min(30).max(85).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
+        gui.add(camera, 'fov').min(config.minFov).max(config.maxFov).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
         renderer.domElement.addEventListener( 'wheel', function(event) {
             var fov = camera.fov + event.deltaY * 0.05;
-            camera.fov = THREE.Math.clamp(Math.round(fov), 30, 85);
+            camera.fov = THREE.Math.clamp(Math.round(fov), config.minFov, config.maxFov);
             camera.updateProjectionMatrix();
         }, false );
 
@@ -697,7 +758,6 @@
             gui: gui
         };
     })();
-
 
     // editor
     (function(){
@@ -780,8 +840,8 @@
 
         var isMouseDown = false;
         renderer.domElement.addEventListener( 'mousedown', function(event) {
-            var x0 = 348, x1 = 1146; var y0 = 150, y1 =  673; // just get it over
-            var array = [(event.clientX-x0)/(x1-x0), (event.clientY-y0)/(y1-y0)];
+            var $el = $(renderer.domElement);
+            var array = [(event.pageX-$el.offset().left)/$el.width(), (event.pageY-$el.offset().top)/$el.height()];
             isMouseDown = true;
             if (event.button === 2) {
                 // right click to add point
@@ -798,8 +858,8 @@
 
         renderer.domElement.addEventListener( 'mousemove', function(event) {
             if (controls.enabled) { return; }
-            var x0 = 348, x1 = 1146; var y0 = 150, y1 =  673; // just get it over
-            var array = [(event.clientX-x0)/(x1-x0), (event.clientY-y0)/(y1-y0)];
+            var $el = $(renderer.domElement);
+            var array = [(event.pageX-$el.offset().left)/$el.width(), (event.pageY-$el.offset().top)/$el.height()];
             var point = config.engagedPoint;
             if (isMouseDown && point) {
                 // update the engaged one
@@ -941,6 +1001,15 @@
             return;
         }
         switch (code) {
+            case 48: // 0
+                config.SPHERE.controls.enabled = !config.SPHERE.controls.enabled;
+                if (config.SPHERE.controls.enabled) {
+                    config.SPHERE.camera.position.set(1000,0,0);
+                    config.SPHERE.controls.target.set(0,0,0);
+                } else {
+                    config.SPHERE.camera.position.set(0,0,0);
+                }
+                break;
 
             case 49: // 1
                 if (ctrl) {
@@ -1072,12 +1141,17 @@
         face3.r2 = r2;
         face3.r3 = r3;
         face3.r = r;
-        face3.lerpAndApply = function(t) {
+        face3.triangleAtT = function(t) {
             var v1 = pos2vec(lerp(face3.r1.x1,face3.r1.x2,t),lerp(face3.r1.y1,face3.r1.y2,t),face3.r);
             var v2 = pos2vec(lerp(face3.r2.x1,face3.r2.x2,t),lerp(face3.r2.y1,face3.r2.y2,t),face3.r);
             var v3 = pos2vec(lerp(face3.r3.x1,face3.r3.x2,t),lerp(face3.r3.y1,face3.r3.y2,t),face3.r);
-            geometry.updatePosition(v1,v2,v3);
+            return new THREE.Triangle(v1,v2,v3);
         };
+        face3.lerpAndApply = function(t) {
+            var tri = face3.triangleAtT(t);
+            geometry.updatePosition(tri.a, tri.b, tri.c);
+        };
+        face3.isTriMesh = true;
         return face3;
     }
 
@@ -1107,8 +1181,8 @@
             mesh3 = new THREE.Mesh(tri3, config.whiteFrameMaterial);
         group.add(mesh1).add(mesh2).add(mesh3);
 
-        mesh1.geometry.faceVertexUvs[0] = [];
-        mesh1.geometry.faceVertexUvs[0].push([
+        mesh1.geometry.faceVertexUvs[0] = [];   // set up an array
+        mesh1.geometry.faceVertexUvs[0].push([  // and push some elements
             config.xy2uv(p1.x,p1.y),
             config.xy2uv(p2.x,p2.y),
             config.xy2uv(p3.x,p3.y)
@@ -1156,15 +1230,10 @@
         // gui.add(config, 'backward').name("后退");
     });
 
-    /*
-     $.get('pairs.json', function(data) {
-     config.loadPairsTxt(data);
-     }, 'text');
-    */
-
     function setProgress(value) {
         config.progress = value;
         config.updateTriangulation(value);
+        // get some screenshots
         setTimeout(function() {
             // config.saveEditor();
             // config.saveSphere();
@@ -1173,11 +1242,16 @@
 
     // SPHERE
     (function () {
+        var hs = 64, ws = 32;
+        if (config.debug) {
+            hs = 32;
+            ws = 16;
+        }
         var width  = $tabs[5].width(); // SPHERE
         var height = $tabs[5].height();
-        var g0 = new THREE.SphereGeometry( 300, 64, 32 ); g0.scale( - 1, 1, 1 );
-        var g1 = new THREE.SphereGeometry( 400, 64, 32 ); g1.scale( - 1, 1, 1 );
-        var g2 = new THREE.SphereGeometry( 500, 64, 32 ); g2.scale( - 1, 1, 1 );
+        var g0 = new THREE.SphereGeometry( 300, hs, ws ); g0.scale( - 1, 1, 1 );
+        var g1 = new THREE.SphereGeometry( 400, hs, ws ); g1.scale( - 1, 1, 1 );
+        var g2 = new THREE.SphereGeometry( 500, hs, ws ); g2.scale( - 1, 1, 1 );
         var m0 = new THREE.MeshBasicMaterial({ wireframe: true });
         var m1 = new THREE.MeshBasicMaterial({ map: config.plane1.material.map }); m1.transparent = true;
         var m2 = new THREE.MeshBasicMaterial({ map: config.plane2.material.map }); m2.transparent = false;
@@ -1185,12 +1259,17 @@
         var s1 = new THREE.Mesh(g1, m1);
         var s2 = new THREE.Mesh(g2, m2);
         var scene = new THREE.Scene();
+
         scene.add(s0);
         scene.add(s1);
         scene.add(s2);
 
+        scene.add(new THREE.AxisHelper(10000));
+
         var group = new THREE.Group();
         scene.add(group);
+        var groupX = new THREE.Group();
+        scene.add(groupX);
 
         var renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -1202,9 +1281,10 @@
         $SPHERE = $(renderer.domElement);
         $SPHERE.appendTo($tabs[5]);
 
-        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
+        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 100000);
         camera.isUserInteracting = false;
-        camera.lon = 0;
+        camera.fov = 100;
+        camera.lon = 180;
         camera.lat = 0;
         camera.onPointerDownPointerX = 0;
         camera.onPointerDownPointerY = 0;
@@ -1220,9 +1300,6 @@
             camera.onPointerDownPointerY = event.clientY;
             camera.onPointerDownLon = camera.lon;
             camera.onPointerDownLat = camera.lat;
-            var x0 = 348, x1 = 1146; var y0 = 150, y1 =  673; // just get it over
-            var array = [(event.clientX-x0)/(x1-x0), (event.clientY-y0)/(y1-y0)];
-            castFace3(new THREE.Vector2().fromArray(array), camera);
         }, false );
         renderer.domElement.addEventListener( 'mousemove', function(event) {
             if ( camera.isUserInteracting === true ) {
@@ -1264,27 +1341,41 @@
         gui.add(config, 'saveSPHERE').name("截图");
         gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
         gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
-        gui.add(camera, 'fov').min(30).max(85).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
+        gui.add(camera, 'fov').min(config.minFov).max(config.maxFov).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
         gui.add(s0, 'visible').listen().name("显示 wireframe");
         gui.add(m1, 'opacity').min(0).max(1).step(0.01).listen().name("S1 Opacity");
         gui.add(m2, 'opacity').min(0).max(1).step(0.01).listen().name("S2 Opacity");
         gui.add(config, 'sphereProgress').min(0).max(1).step(0.01).listen().name("变形").onChange(function(t){
-            /*
             config.SPHERE.group.children.forEach(function(face3){
-                if (face3.lerpAndApply !== undefined) {
+                if (face3.isTriMesh === true && face3.lerpAndApply !== undefined) {
                     face3.lerpAndApply(t);
                 }
             });
+            /*
             */
             config.sphereCarts.forEach(function(v){
-                v.lerpAndApply(t);
+                var i = v.index;
+                var position = lerpDirection(v.from.position, v.to.position, t).setLength(200);
+                v.cur.position.copy( position );
+                // point.position.copy(pos2vec(pos.x, pos.y, point.position.length()));
+                config.SPHERE.s1.geometry.vertices[i].copy( position.setLength(400) );
+                config.SPHERE.s2.geometry.vertices[i].copy( position.setLength(500) );
             });
+            config.SPHERE.s1.material.opacity = 1-t;
             config.SPHERE.s1.geometry.verticesNeedUpdate = true;
+            config.SPHERE.s2.geometry.verticesNeedUpdate = true;
         });
         gui.add(config, 'logVertexOfSPHERE').name("logVertics");
+
+        gui.add(s0, 'visible').listen().name("s0 visible");
+        gui.add(s1, 'visible').listen().name("s1 visible");
+        gui.add(s2, 'visible').listen().name("s2 visible");
+        gui.add(group, 'visible').listen().name("mesh visible");
+        gui.add(groupX, 'visible').listen().name("point visible");
+
         renderer.domElement.addEventListener( 'wheel', function(event) {
             var fov = camera.fov + event.deltaY * 0.05;
-            camera.fov = THREE.Math.clamp(Math.round(fov), 30, 85);
+            camera.fov = THREE.Math.clamp(Math.round(fov), config.minFov, config.maxFov);
             camera.updateProjectionMatrix();
         }, false );
         config.SPHERE = {
@@ -1292,7 +1383,9 @@
             s1: s1,
             s2: s2,
             group: group,
+            groupX: groupX,
             camera: camera,
+            scene: scene,
             renderer: renderer,
             controls: controls
         };

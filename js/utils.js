@@ -115,7 +115,6 @@ var _Util = function() {
     this.lonlat2xyz = function(lon, lat, radius) {
         var phi = THREE.Math.degToRad(90 - lat);
         var theta = THREE.Math.degToRad(lon);
-        var radius = radius || 1;
         return {
             "x": radius * Math.sin(phi) * Math.cos(theta),
             "y": radius * Math.cos(phi),
@@ -130,17 +129,17 @@ var _Util = function() {
             theta: THREE.Math.radToDeg( Math.atan(z/x) ),
             phi: THREE.Math.radToDeg( Math.acos(y/r) )
         };
-    }
+    };
 
     this.rtp2xyz = function(radius, theta, phi) {
         var theta = THREE.Math.degToRad(theta);
-        var phi   = THREE.Math.degToRad(phi);
+        var phi = THREE.Math.degToRad(phi);
         return {
             "x": radius * Math.sin( phi ) * Math.cos( theta ),
             "y": radius * Math.cos( phi ),
             "z": radius * Math.sin( phi ) * Math.sin( theta )
         };
-    }
+    };
 
     this.xyz2lonlat = function(x, y, z) {
         var r = Math.sqrt( x*x + y*y + z*z );
@@ -150,6 +149,17 @@ var _Util = function() {
             "lon": THREE.Math.radToDeg(theta),
             "lat": 90 - THREE.Math.radToDeg(phi)
         };
+    };
+    this.xyz2uv = function(x, y, z) {
+        var r = Math.sqrt( x*x + y*y + z*z ),
+            theta = Math.atan( z / x ),
+            phi = Math.acos( y / r );
+        var lon = THREE.Math.radToDeg(theta),
+            lat = 90 - THREE.Math.radToDeg(phi);
+        return new THREE.Vector2(
+            lon/360-180,
+            (lat+90)/180
+        );
     };
 
     this.barycentric2cartesian = function(bc,r1,r2,r3) {
