@@ -1,6 +1,14 @@
 # texture-morpher
 a tool to make morphable texture
 
+通过三角化形成动态纹理，使得全景漫游系统的场景过渡更自然。
+
+![](doc/triangles.png)
+
+| Blend 方法 | Morph 方法 |
+| :---: | :---: |
+| ![](doc/blend-effect-0.25.gif) | ![](doc/morph-effect-0.25.gif) |
+
 ## 主界面 // Main window
 
 ![](doc/chrome_2017-05-05_16-32-17.png)
@@ -8,14 +16,9 @@ a tool to make morphable texture
 查看 Demo：
 
 -   先在【Editor】栏，点击【打开控件】，然后【加载示例 Pairs】
--   到【Sphere】栏，点击【打开控件】，然后【过渡】，效果不好；
-
-![](doc/blend-effect-0.25.gif)
-
+-   到【Sphere】栏，点击【打开控件】，然后【过渡】，效果不好（见上图 Blend 方法）；
 -   再到【Editor】栏，点击【打控件】，然后【三角化】；
--   到【Sphere】栏，点击【打开控件】，最后【过渡】，效果好多了。
-
-![](doc/morph-effect-0.25.gif)
+-   到【Sphere】栏，点击【打开控件】，最后【过渡】，效果好多了（见上图 Morph 方法）。
 
 ## 编辑器地使用 // Usage of Editor
 
