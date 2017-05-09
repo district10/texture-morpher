@@ -147,7 +147,8 @@
 <!--<script src="js/object.watch.js"></script>-->
 <script src="js/utils.js"></script>
 <script>
-    "use script";
+    "use strict";
+    var sphereRadius = 200;
     function lerp(a,b,t) {
         return (1-t)*a+t*b;
     }
@@ -295,6 +296,7 @@
     var p1mat = new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSide } );
     var p2mat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
     var pxmat = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );
+    var pymat = new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide } );
 
     (function(){
         return;
@@ -395,18 +397,24 @@
         this.logVertexOfSPHERE = function() {
             config.sphereCarts = [];
             config.SPHERE.groupX.children = [];
+            return;
             config.SPHERE.s1.geometry.vertices.forEach(function(v,i){
                 var obj = castFace3FromVertex(v,i);
                 if (obj && obj.r1 !== undefined && obj.r2 !== undefined && obj.r3 !== undefined) {
-                    var info = pack(vec2pos(v), obj.r1, obj.r2, obj.r3);
-                    var from = new THREE.Mesh( smallPoint, p1mat ); from.position.copy(v).setLength(200);
-                    var cur   = new THREE.Mesh( smallPoint, pxmat ); cur.position.copy(v).setLength(200);
                     var bary = baryFromCartInFace3(obj, v);
-                    var to   = new THREE.Mesh( smallPoint, p2mat );
                     var toposition = cartFromBaryInTriangle(obj.triangleAtT(1), bary);
-                    to.position.copy(toposition).setLength(200);
+                    var info = pack(vec2pos(v), obj.r1, obj.r2, obj.r3);
+                    var from = new THREE.Mesh( smallPoint, p1mat ); from.position.copy(v).setLength(sphereRadius);
+                    var to = new THREE.Mesh( smallPoint, p2mat ); to.position.copy(toposition).setLength(sphereRadius);
+                    var cur   = new THREE.Mesh( smallPoint, pymat ); cur.position.copy(v).setLength(sphereRadius);
                     // set toposition uv coord at ith node (3 triangles)
                     tweetTexture(config.SPHERE.s2, i, Util.xyz2uv(v.x,v.y,v.z));
+                    obj.holds.push({
+                        index: i,
+                        bary: bary,
+                        cur: cur
+                    });
+                    /*
                     config.sphereCarts.push({
                         index: i,
                         info: info,
@@ -414,9 +422,11 @@
                         to: to,
                         cur: cur
                     });
+                    */
                     config.SPHERE.groupX.add(from);
                     config.SPHERE.groupX.add(cur);
                     config.SPHERE.groupX.add(to);
+
                     /*
                     v.info = ret;
                     v.lerpAndApply = function(t) {
@@ -437,6 +447,7 @@
         };
 
         this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
+        this.yellowFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true, side: THREE.DoubleSide, transparent: true });
         this.redFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, side: THREE.DoubleSide, transparent: true });
         this.helpers = [];
         this.progress = 0.0;
@@ -514,6 +525,7 @@
             var index = 0;
             config.groupx.children = [];
             config.SPHERE.group.children = [];
+            config.SPHERE.groupDual.children = [];
             triangles.forEach(function(tri){
                 var p1 = tri[0];
                 var p2 = tri[1];
@@ -531,8 +543,13 @@
                     faces.push(mesh);
 
                     // SPHERE
-                    var face3 = triangleOnSphere(ref1,ref2,ref3, 200);
+                    var face3 = triangleOnSphere(ref1,ref2,ref3, sphereRadius);
                     config.SPHERE.group.add(face3);
+                    var face3Dual = dualFace3OnSphere(face3);
+                    config.SPHERE.groupDual.add(face3Dual);
+                    /*
+                    */
+
                 } else {
                     console.log("bug!");
                 }
@@ -1117,9 +1134,9 @@
 
     var newTriangle = function(a,b,c) { // a,b,c
         var geometry = new THREE.Geometry();
-        geometry.vertices.push(a);
-        geometry.vertices.push(b);
-        geometry.vertices.push(c);
+        geometry.vertices.push(a.clone());
+        geometry.vertices.push(b.clone());
+        geometry.vertices.push(c.clone());
         geometry.faces.push( new THREE.Face3(0,1,2) );
         geometry.updatePosition = function (a,b,c) {
             geometry.vertices[0].copy(a);
@@ -1130,13 +1147,99 @@
         return geometry;
     };
 
+    var newTriangleWithNormal = function(a,b,c) { // a,b,c
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(a.clone());
+        geometry.vertices.push(b.clone());
+        geometry.vertices.push(c.clone());
+        geometry.faces.push( new THREE.Face3(0,1,2) );
+        if (config.debug === false) {
+            geometry.vertexNormals = [ a.clone().negate().normalize(), b.clone().negate().normalize(), c.clone().negate().normalize() ];
+        }
+        return geometry;
+    };
+
+    function dualFace3OnSphere(face3) {
+        var group = new THREE.Group();
+        var face1 = newTriangleWithNormal( face3.geometry.vertices[0], face3.geometry.vertices[1], face3.geometry.vertices[2] );
+        var face2 = newTriangleWithNormal( face3.geometry.vertices[0], face3.geometry.vertices[1], face3.geometry.vertices[2] );
+        var mesh1 = new THREE.Mesh(face1, config.plane1.material);
+        var mesh2 = new THREE.Mesh(face2, config.plane2.material);
+        mesh1.geometry.faceVertexUvs[0] = [];   // set up an array
+        mesh1.geometry.faceVertexUvs[0].push([  // and push some elements
+            config.xy2uv(face3.r1.x1,face3.r1.y1),
+            config.xy2uv(face3.r2.x1,face3.r2.y1),
+            config.xy2uv(face3.r3.x1,face3.r3.y1)
+        ]);
+        mesh1.uvsNeedUpdate = true;
+        mesh2.geometry.faceVertexUvs[0] = [];   // set up an array
+        mesh2.geometry.faceVertexUvs[0].push([  // and push some elements
+            config.xy2uv(face3.r1.x2,face3.r1.y2),
+            config.xy2uv(face3.r2.x2,face3.r2.y2),
+            config.xy2uv(face3.r3.x2,face3.r3.y2)
+        ]);
+        mesh2.uvsNeedUpdate = true;
+
+        // mesh1.material.shading = THREE.SmoothShading;
+        // mesh2.material.shading = THREE.SmoothShading;
+
+        /*
+        mesh1.geometry.faceVertexUvs = [];
+        mesh1.geometry.faceVertexUvs[0] = [
+            config.xy2uv(face3.r1.x1,face3.r1.y1),
+            config.xy2uv(face3.r2.x1,face3.r2.y1),
+            config.xy2uv(face3.r3.x1,face3.r3.y1)
+        ];
+        mesh1.uvsNeedUpdate = true;
+        mesh2.geometry.faceVertexUvs = [];
+        mesh2.geometry.faceVertexUvs[0] = [
+            config.xy2uv(face3.r1.x2,face3.r1.y2),
+            config.xy2uv(face3.r2.x2,face3.r2.y2),
+            config.xy2uv(face3.r3.x2,face3.r3.y2)
+        ];
+        mesh2.uvsNeedUpdate = true;
+        */
+        group.face3 = face3;
+        group.mesh1 = mesh1;
+        group.mesh2 = mesh2;
+        group.add(mesh1);
+        group.add(mesh2);
+        group.updatePosition = function() {
+            var face3 = group.face3;
+            var r = [250, 260];
+            [group.mesh1, group.mesh2].forEach(function(mesh,index){
+                [0,1,2].forEach(function(i){
+                    mesh.geometry.vertices[i].copy(face3.geometry.vertices[i].clone().setLength(r[index]));
+                    if (config.debug === false) {
+                        mesh.geometry.vertexNormals[i].copy(face3.geometry.vertices[i].clone().negate().normalize());
+                    }
+                });
+                mesh.geometry.verticesNeedUpdate = true;
+                if (config.debug === false) {
+                    mesh.geometry.normalsNeedUpdate = true;
+                }
+            });
+            /*
+            */
+        };
+        group.updatePosition();
+
+        return group;
+    }
+
     function triangleOnSphere(r1,r2,r3,r) {
         var r = r || 200;
         var v1 = pos2vec(r1.x1, r1.y1, r);
         var v2 = pos2vec(r2.x1, r2.y1, r);
         var v3 = pos2vec(r3.x1, r3.y1, r);
         var geometry = newTriangle(v1, v2, v3);
-        var face3 = new THREE.Mesh(geometry, config.whiteFrameMaterial);
+        geometry.vertexNormals = [
+            v1.clone().negate().normalize(),
+            v2.clone().negate().normalize(),
+            v3.clone().negate().normalize()
+        ];
+        geometry.normalsNeedUpdate = true;
+        var face3 = new THREE.Mesh(geometry, config.yellowFrameMaterial);
         face3.r1 = r1;
         face3.r2 = r2;
         face3.r3 = r3;
@@ -1147,9 +1250,29 @@
             var v3 = pos2vec(lerp(face3.r3.x1,face3.r3.x2,t),lerp(face3.r3.y1,face3.r3.y2,t),face3.r);
             return new THREE.Triangle(v1,v2,v3);
         };
+        face3.holds = [];
         face3.lerpAndApply = function(t) {
             var tri = face3.triangleAtT(t);
             geometry.updatePosition(tri.a, tri.b, tri.c);
+            geometry.vertexNormals[0].copy(tri.a.clone().negate().normalize());
+            geometry.vertexNormals[1].copy(tri.b.clone().negate().normalize());
+            geometry.vertexNormals[2].copy(tri.c.clone().negate().normalize());
+            geometry.normalsNeedUpdate = true;
+            /*
+            face3.holds.forEach(function(h){
+                var index = h.index;
+                var bary = h.bary;
+                var cur = h.cur;
+                var v = new THREE.Vector3();
+                v.x = bary.x*tri.a.x + bary.y*tri.b.x + bary.z*tri.c.x;
+                v.y = bary.x*tri.a.y + bary.y*tri.b.y + bary.z*tri.c.y;
+                v.z = bary.x*tri.a.z + bary.y*tri.b.z + bary.z*tri.c.z;
+                // todo, for all points it have update that, shitshitshit
+                config.SPHERE.s0.geometry.vertices[index].copy( v.setLength(config.SPHERE.s0.geometry.parameters.radius) );
+                config.SPHERE.s1.geometry.vertices[index].copy( v.setLength(config.SPHERE.s1.geometry.parameters.radius) );
+                cur.position.copy(v.setLength(sphereRadius));
+            });
+            */
         };
         face3.isTriMesh = true;
         return face3;
@@ -1243,16 +1366,12 @@
     // SPHERE
     (function () {
         var hs = 64, ws = 32;
-        if (config.debug) {
-            hs = 32;
-            ws = 16;
-        }
         var width  = $tabs[5].width(); // SPHERE
         var height = $tabs[5].height();
         var g0 = new THREE.SphereGeometry( 300, hs, ws ); g0.scale( - 1, 1, 1 );
         var g1 = new THREE.SphereGeometry( 400, hs, ws ); g1.scale( - 1, 1, 1 );
         var g2 = new THREE.SphereGeometry( 500, hs, ws ); g2.scale( - 1, 1, 1 );
-        var m0 = new THREE.MeshBasicMaterial({ wireframe: true });
+        var m0 = new THREE.MeshBasicMaterial({ wireframe: true, color: 0xffff00 });
         var m1 = new THREE.MeshBasicMaterial({ map: config.plane1.material.map }); m1.transparent = true;
         var m2 = new THREE.MeshBasicMaterial({ map: config.plane2.material.map }); m2.transparent = false;
         var s0 = new THREE.Mesh(g0, m0); s0.visible = false;
@@ -1268,6 +1387,8 @@
 
         var group = new THREE.Group();
         scene.add(group);
+        var groupDual = new THREE.Group();
+        scene.add(groupDual);
         var groupX = new THREE.Group();
         scene.add(groupX);
 
@@ -1348,11 +1469,13 @@
         gui.add(config, 'sphereProgress').min(0).max(1).step(0.01).listen().name("变形").onChange(function(t){
             config.SPHERE.group.children.forEach(function(face3){
                 if (face3.isTriMesh === true && face3.lerpAndApply !== undefined) {
-                    face3.lerpAndApply(t);
+                    face3.lerpAndApply(t); // face3.holds.forEach(function (h) { });
                 }
             });
+            config.SPHERE.groupDual.children.forEach(function(face3Dual){
+                face3Dual.updatePosition();
+            });
             /*
-            */
             config.sphereCarts.forEach(function(v){
                 var i = v.index;
                 var position = lerpDirection(v.from.position, v.to.position, t).setLength(200);
@@ -1361,9 +1484,11 @@
                 config.SPHERE.s1.geometry.vertices[i].copy( position.setLength(400) );
                 config.SPHERE.s2.geometry.vertices[i].copy( position.setLength(500) );
             });
+             */
             config.SPHERE.s1.material.opacity = 1-t;
-            config.SPHERE.s1.geometry.verticesNeedUpdate = true;
-            config.SPHERE.s2.geometry.verticesNeedUpdate = true;
+            // config.SPHERE.s0.geometry.verticesNeedUpdate = true;
+            // config.SPHERE.s1.geometry.verticesNeedUpdate = true;
+            // config.SPHERE.s2.geometry.verticesNeedUpdate = true;
         });
         gui.add(config, 'logVertexOfSPHERE').name("logVertics");
 
@@ -1371,6 +1496,7 @@
         gui.add(s1, 'visible').listen().name("s1 visible");
         gui.add(s2, 'visible').listen().name("s2 visible");
         gui.add(group, 'visible').listen().name("mesh visible");
+        gui.add(groupDual, 'visible').listen().name("face visible");
         gui.add(groupX, 'visible').listen().name("point visible");
 
         renderer.domElement.addEventListener( 'wheel', function(event) {
@@ -1383,6 +1509,7 @@
             s1: s1,
             s2: s2,
             group: group,
+            groupDual: groupDual,
             groupX: groupX,
             camera: camera,
             scene: scene,
