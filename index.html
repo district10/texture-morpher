@@ -106,8 +106,8 @@
     <li><a href="#tabs-5">SPHERE</a></li>
     <li><a href="#tabs-6">Help</a></li></ul>
     <div id="tabs-0" class="tab"></div>
-    <div id="tabs-1" class="tab"><img id="image1" class="image" src="images/texture1.jpg" alt="image1" /></div>
-    <div id="tabs-2" class="tab"><img id="image2" class="image" src="images/texture2.jpg" alt="image2" /></div>
+    <div id="tabs-1" class="tab"><img id="image1" class="image" src="texture1.jpg" alt="image1" /></div>
+    <div id="tabs-2" class="tab"><img id="image2" class="image" src="texture2.jpg" alt="image2" /></div>
     <div id="tabs-3" class="tab"><canvas id="canvas"></canvas></div>
     <div id="tabs-4" class="tab"></div>
     <div id="tabs-5" class="tab"></div>
@@ -677,7 +677,7 @@
         texture.needsUpdate = true;
         var materials = [
             new THREE.MeshBasicMaterial( { map: texture } ),
-            new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'images/texture1.jpg' ) } )
+            new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'texture1.jpg' ) } )
         ];
         var matIndex = 0;
         var material = materials[0];
@@ -819,7 +819,7 @@
         var groupx = new THREE.Group();
 
         (function(){
-            var texture = new THREE.TextureLoader().load('images/texture1.jpg');
+            var texture = new THREE.TextureLoader().load('texture1.jpg');
             texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
             var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
             var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }); material.transparent = true;
@@ -828,7 +828,7 @@
             config.plane1 = mesh;
         })();
         (function(){
-            var texture = new THREE.TextureLoader().load('images/texture2.jpg');
+            var texture = new THREE.TextureLoader().load('texture2.jpg');
             texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
             var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
             var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
