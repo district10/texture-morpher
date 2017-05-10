@@ -4,3 +4,4 @@
 *.zip
 *.rar
 /tmp/
+images/*.jpg

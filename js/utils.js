@@ -122,6 +122,7 @@ var _Util = function() {
         };
     };
 
+
     this.xyz2rtp = function(x, y, z) {
         var r = Math.sqrt( x*x + y*y + z*z );
         return {
