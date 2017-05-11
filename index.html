@@ -199,9 +199,9 @@
         };
         this.update = function(a,b,c) {
             var n = _this.n;
-            _this.a.copy(a);
-            _this.b.copy(b);
-            _this.c.copy(c);
+            _this.a.copy(a.clone().normalize());
+            _this.b.copy(b.clone().normalize());
+            _this.c.copy(c.clone().normalize());
             if (_this.group.children.length > 0) {
                 var mesh = _this.group.children[0];
                 _this.traverse(function(i,j){
@@ -476,8 +476,7 @@
     });
     _renderer.setSize(4096, 2048);
 
-    // x1, y1, x2, y2, u1, v1, u2, v2, valid, p1, p2, link
-    var point = new THREE.SphereGeometry( 10, 64, 32 );
+    var point = new THREE.SphereGeometry( 5, 64, 32 );
     var smallPoint = new THREE.SphereGeometry( 2, 32, 16 );
     var p1mat = new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSide } );
     var p2mat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
@@ -557,7 +556,18 @@
     var Config = function() {
         var _this = this;
 
-        this.nsep = 3;
+        this.toggleSPHERE = function() {
+            config.SPHERE.controls.enabled = !config.SPHERE.controls.enabled;
+            if (config.SPHERE.controls.enabled) {
+                config.SPHERE.camera.position.set(1000,0,0);
+                config.SPHERE.controls.target.set(0,0,0);
+            } else {
+                config.SPHERE.camera.position.set(0,0,0);
+            }
+        };
+
+        this.nsep = 5;
+        this.speed = 3;
 
         this.minFov = 10;
         this.maxFov = 150;
@@ -724,12 +734,14 @@
         this.savePairs = function() {
             var ret = [];
             app.pairs.forEach(function(pair){
-                ret.push({
-                    x1: pair.x1,
-                    y1: pair.y1,
-                    x2: pair.x2,
-                    y2: pair.y2
-                });
+                if (pair.valid && pair.p1.visible) {
+                    ret.push({
+                        x1: pair.x1,
+                        y1: pair.y1,
+                        x2: pair.x2,
+                        y2: pair.y2
+                    });
+                }
             });
             var url = 'data:text/json;charset=utf8,' + encodeURIComponent(JSON.stringify(ret));
             window.open(url, '_blank');
@@ -749,7 +761,7 @@
                 pushPair(p);
             });
         };
-        this.loadPairs = Util.fileInputReadAsText(_this.loadPairsJSON);
+        this.loadPairs = Util.fileInputReadAsText(_this.loadPairsTxt);
         this.loadDefaultPairs = function() {
             $.get('pairs.json', function(data) {
                 config.loadPairsTxt(data);
@@ -966,6 +978,7 @@
 
         gui.add(config, 'debug').listen().name("调试");
         gui.add(config, 'saveEditor').name("截图");
+        gui.add(config, 'speed').min(0.5).max(10).step(0.5).name("速度");
         gui.add(config, 'savePairs').name("保存 Pairs");
         gui.add(config, 'loadPairs').name("加载 Pairs");
         gui.add(config, 'loadDefaultPairs').name("加载示例 Pairs");
@@ -1176,13 +1189,7 @@
         }
         switch (code) {
             case 48: // 0
-                config.SPHERE.controls.enabled = !config.SPHERE.controls.enabled;
-                if (config.SPHERE.controls.enabled) {
-                    config.SPHERE.camera.position.set(1000,0,0);
-                    config.SPHERE.controls.target.set(0,0,0);
-                } else {
-                    config.SPHERE.camera.position.set(0,0,0);
-                }
+                config.toggleSPHERE();
                 break;
 
             case 49: // 1
@@ -1208,19 +1215,19 @@
                 break;
 
             case 38: // up
-                config.pair[ctrl?"y2":"y1"] += 5;
+                config.pair[ctrl?"y2":"y1"] += config.speed;
                 updatePair((ctrl?config.pair:config.pair));
                 break;
             case 40: // down
-                config.pair[ctrl?"y2":"y1"] -= 5;
+                config.pair[ctrl?"y2":"y1"] -= config.speed;
                 updatePair((ctrl?config.pair:config.pair));
                 break;
             case 37: // left
-                config.pair[ctrl?"x2":"x1"] -= 5;
+                config.pair[ctrl?"x2":"x1"] -= config.speed;
                 updatePair((ctrl?config.pair:config.pair));
                 break;
             case 39: // right
-                config.pair[ctrl?"x2":"x1"] += 5;
+                config.pair[ctrl?"x2":"x1"] += config.speed;
                 updatePair((ctrl?config.pair:config.pair));
                 break;
 
@@ -1352,7 +1359,6 @@
                     v[2].clone().setLength(dualTriMesh.radius)
                 );
             } else {
-                console.log("nice!!!");
                 dualTriMesh.init(
                     v[0].clone().setLength(dualTriMesh.radius),
                     v[1].clone().setLength(dualTriMesh.radius),
@@ -1503,6 +1509,7 @@
         // gui.add(config, 'backward').name("后退");
     });
     config.guis[5].add(config, 'morphBtn').name("过渡");
+    config.guis[5].add(config, 'toggleSPHERE').name("切换相机");
 
 
     function setProgress(value) {
@@ -1555,8 +1562,8 @@
         var camera = new THREE.PerspectiveCamera(50, width/height, 1, 100000);
         camera.isUserInteracting = false;
         camera.fov = 100;
-        camera.lon = 180;
-        camera.lat = 0;
+        camera.lon = 169.89999999999998;
+        camera.lat = -3.3000000000000003;
         camera.onPointerDownPointerX = 0;
         camera.onPointerDownPointerY = 0;
         camera.onPointerDownLon = 0;
