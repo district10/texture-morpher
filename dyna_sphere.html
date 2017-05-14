@@ -61,7 +61,7 @@
             var t1 = new TWEEN.Tween(_this)
                 .delay(100)
                 .to({ progress: 1.0 }, 5000)
-            	.onUpdate(function() {
+                .onComplete(function() {
                     _this.inProgress = false;
                 });
             t1.start();
@@ -357,6 +357,7 @@
         if( Detector.webgl ){
             renderer = new THREE.WebGLRenderer({
                 antialias: true
+             // , alpha: true
             });
         } else {
             renderer = new THREE.CanvasRenderer();
