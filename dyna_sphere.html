@@ -49,7 +49,6 @@
     var Config = function() {
         var _this = this;
 
-        this.clock = new THREE.Clock();
         this.benchmark = false;
 
         this.lastProgress = -1.0;
@@ -72,8 +71,8 @@
 
         this.morph = function(t) {
             var t = t || _this.progress;
-            if (t === _this.lastSphereProgress) { return; }
-            _this.lastSphereProgress = t;
+            if (t === _this.lastProgress) { return; }
+            _this.lastProgress = t;
             group.children.forEach(function(face3){
                 if (face3.isTriMesh === true && face3.lerpAndApply !== undefined) {
                     face3.lerpAndApply(t);
@@ -86,7 +85,7 @@
             meshA.material.opacity = 1-t;
         };
 
-        this.fov = 75;
+        this.fov = 60;
         this.lon = 180;
         this.lat = 0;
         this.freeze = false;
@@ -270,8 +269,6 @@
                     group.add(face3);
                     var face3Dual = dualFace3OnSphere(face3, sphereRadius*1.2);
                     groupDual.add(face3Dual.group);
-                } else {
-                    console.log("bug!");
                 }
             });
         };
@@ -284,7 +281,6 @@
         var animate = function(time){
             window.requestAnimationFrame( animate );
             TWEEN.update();
-            console.log(time);
             if (config.inProgress) {
                 $("#progress")[0].value = config.progress;
             }
@@ -430,8 +426,15 @@
         vis.add(groupDual, 'visible').name("覆盖面");
         var advanced = gui.addFolder('高级设置');
         advanced.add(config, 'nsep').min(2).max(25).step(1).listen().name("face #sep").onChange(function(){
-            config.lastSphereProgress = -1.0;
+            config.lastProgress = -1.0;
         });
+        var links = gui.addFolder('链接');
+        var link = {
+            "README": function() { window.location = "README.html"; },
+            "dyna_texture": function() { window.location = "dyna_texture.html"; }
+        };
+        links.add(link, 'dyna_texture').name("动态全景图方案");
+        links.add(link, 'README').name("文档");
         // gui.add(config, 'loadDefaultPairs').name("生成格网");
         // gui.add(config, 'applyTriangulation').name("Apply");
         // var ref = gui.addFolder('更多示例');
