@@ -160,8 +160,8 @@
     (function() {
         var url = window.location.toString();
         var index = url.lastIndexOf('/');
-        var url1 = url + url.substring(0,index)+'/dyna_texture.html';
-        var url2 = url + url.substring(0,index)+'/dyna_sphere.html';
+        var url1 = url.substring(0,index)+'/dyna_texture.html';
+        var url2 = url.substring(0,index)+'/dyna_sphere.html';
         new QRCode(document.getElementById("qrcode1"), url1);
         new QRCode(document.getElementById("qrcode2"), url2);
     })();
