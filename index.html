@@ -87,6 +87,7 @@
     </style>
     <script src="js/jquery.min.js"></script>
     <script src="js/jquery-ui.min.js"></script>
+    <script src="js/qrcode.min.js"></script>
     <script>
         $(function(){
             $( ".main-panel" ).tabs();
@@ -116,8 +117,8 @@
     <div id="tabs-6" class="tab">
         <a target="_blank" href="README.html">见文档</a>
         <ul>
-            <li>压力测试：<a href="dyna_texture.html">动态全景图</a></li>
-            <li>压力测试：<a href="dyna_sphere.html">动态全景球</a></li>
+            <li>压力测试：<a href="dyna_texture.html">动态全景图</a><br /><div id="qrcode1"></div></li>
+            <li>压力测试：<a href="dyna_sphere.html" >动态全景球</a><br /><div id="qrcode2"></div></li>
         </ul>
     </div>
 </div>
@@ -156,6 +157,15 @@
 <script src="js/utils.js"></script>
 <script>
     "use strict";
+    (function() {
+        var url = window.location.toString();
+        var index = url.lastIndexOf('/');
+        var url1 = url + url.substring(0,index)+'/dyna_texture.html';
+        var url2 = url + url.substring(0,index)+'/dyna_sphere.html';
+        new QRCode(document.getElementById("qrcode1"), url1);
+        new QRCode(document.getElementById("qrcode2"), url2);
+    })();
+
     var TriMesh = function(n, radius, useVertexNormals) {
         var _this = this;
         this.n = n;
