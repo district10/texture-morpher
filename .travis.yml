@@ -13,5 +13,5 @@ install:
   - sudo cp qrsync /bin
 script:
   - cd ~/build/district10/texture-morpher;
-  - cat conf.json.in | sed -e "s/QiNiuAK/$QiNiuAK/" | sed -e "s/QiNiuSK/$QiNiuSK/" > conf.json
-  - qrsync conf.json rm conf.json;
+  - cat conf.json.in | sed -e "s/QiNiuAK/$QiNiuAK/" | sed -e "s/QiNiuSK/$QiNiuSK/" > /tmp/conf.json
+  - qrsync /tmp/conf.json
