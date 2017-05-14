@@ -39,11 +39,7 @@ a tool to make morphable texture
 
 ## 动态全景图 // Sphere
 
-TODO
-
 ## 动态全景球 // SPHERE
-
-TODO
 
 ---
 
