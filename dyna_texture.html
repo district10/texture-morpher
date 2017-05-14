@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>全景图查看器</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="css/dat-gui-light-theme.css" type="text/css" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1">
+    <style>
+        body {
+            margin: 0px;
+            overflow: hidden;
+            z-index: -1000;
+        }
+
+        .qr {
+            position: absolute;
+            left: 0px;
+            top: 0px;
+            margin: 0 auto;
+            overflow: hidden;
+            z-index: 1000;
+            opacity: 0.2;
+        }
+        .qr:hover {
+            opacity: 1.0;
+        }
+
+        .log {
+            position: absolute;
+            left: 0px;
+            bottom: 0px;
+            margin: 2px;
+            padding: 2px;
+            border: 1px solid white;
+            color: white;
+            font-size: 8px;
+            max-width: 50%;
+            max-height: 60%;
+            min-width: 200px;
+            background-color: rgba(0,0,0,0.4);
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        #cursor-log {
+            margin: 0;
+            padding: 10px;
+            border: none;
+            min-width: 0px;
+            min-height: 0px;
+        }
+        .pic {
+            position: absolute;
+            right: 0px;
+            bottom: 0px;
+            margin: 2px;
+            padding: 2px;
+            border: 1px solid white;
+            background-color: rgba(0,0,0,0.4);
+        }
+    </style>
+</head>
+<body class="tab">
+
+<div class="qr" id="qr"><a href="https://github.com/district10/panorama-viewer" title="扫码：在移动端打开；点击：Fork me on GitHub"><img src="qr.png" alt="" style="width:150px;height:150px" /></a></div>
+<div id="container"></div>
+<div class="log"><pre><code id="log"></code></pre></div>
+<div class="log" id="cursor-log"><pre><code id="cursor-log-code"></code></pre></div>
+<div class="pic"><a title="点击查看原图" href="texture1.jpg" target="_blank"><img id="pic" src="texture1.jpg" style="width:300px;height:150px;" alt="原图" /></a></div>
+
+<script src="js/jquery.min.js"></script>
+<script src="js/three.min.js"></script>
+<script src="js/CanvasRenderer.js"></script>
+<script src="js/Projector.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/DeviceOrientationControls.js"></script>
+<script src="js/dat.gui.min.js"></script>
+
+<script>
+    "use strict";
+
+    var Config = function() {
+        this.showQR = true;
+        this.showLog = false;
+        this.showPic = false;
+        this.fov = 75;
+        this.fileInput = $('<input type="file" />');
+        this.fileInput.on("change", function(e){
+            var f = e.target.files[0];
+            if (f) {
+                var r = new FileReader();
+                r.onload = function(event) {
+                    loadTexture( event.target.result );
+                };
+                r.readAsDataURL(f);
+            }
+        });
+        this.loadTexture = function() {
+            this.fileInput.click();
+        };
+        this.loadTextureTip = "图片拖到页面也可加载";
+        this.textureSrc = "texture1.jpg";
+        this.resetView = function() {
+            this.lon = this.lat = 0;
+        };
+
+        this.autoUpdateLon = false;
+        this.lon = 0;
+        this.lat = 0;
+
+        // examples
+        this.exampleDual = function(){
+            window.location = "dual.html";
+        };
+        this.exampleDual2 = function(){
+            window.location = "dual2.html";
+        };
+        this.exampleDual3 = function(){
+            window.location = "dual3.html";
+        };
+        this.aboutPage = function(){
+            window.location = "about.html";
+        };
+
+        this.camera = new THREE.PerspectiveCamera(this.fov, window.innerWidth / window.innerHeight, 1, 1000);
+        this.cameraHelper = new THREE.CameraHelper(this.camera);
+        this.cameraHelper.visible = false;
+    };
+    var config = new Config();
+
+    var isDesktop = !navigator.userAgent.match(/(iPhone|iPod|iPad|Android|BlackBerry|BB10|mobi|tablet|opera mini|nexus 7)/i);
+    if (!isDesktop) {
+        config.showQR = false;
+        $(".qr").hide();
+    }
+    if (!config.showLog) { $(".log").hide(); }
+    if (!config.showPic) { $(".pic").hide(); }
+
+    var gui = new dat.GUI(); gui.closed = true;
+
+    var logElement = $("#log")[0];
+    function debug(msg) {
+        logElement.innerHTML = msg;
+    }
+
+    var raycaster = new THREE.Raycaster();
+    var mouse = new THREE.Vector2();
+    var onClickPosition = new THREE.Vector2();
+
+    var container, camera, scene, renderer, controls, material;
+    var isUserInteracting = false;
+    var phi = 0, theta = 0;
+    var onPointerDownPointerX = 0, onPointerDownPointerY = 0, onPointerDownLon = 0, onPointerDownLat = 0;
+
+    function loadTexture(url) {
+        $("#pic")[0].src = $("#pic").parent()[0].href = url;
+        material.map.image.src = url;
+        material.map.needsUpdate = true;
+    }
+
+    window.addEventListener('load', function() {
+
+        var animate = function(){
+            window.requestAnimationFrame( animate );
+            if (isDesktop) {
+                if (config.autoUpdateLon) {
+                    config.lon += 0.2;
+                }
+                if (config.lon > 360) { config.lon -= 360; }
+                if (config.lon <   0) { config.lon += 360; }
+                config.lat = Math.max( - 85, Math.min( 85, config.lat ) );
+                phi = THREE.Math.degToRad( 90 - config.lat );
+                theta = THREE.Math.degToRad( config.lon );
+                camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+                camera.target.y = 500 * Math.cos( phi );
+                camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+                camera.lookAt( camera.target.add(camera.position) );
+            } else {
+                controls.update();
+                // TODO, calculate lon, lat
+            }
+            if (config.showLog) {
+                debug( JSON.stringify({
+                    "camera": {
+                        "getWorldDirection": camera.getWorldDirection()
+                      , "localToWorld(camera.up)": camera.localToWorld(camera.up.clone())
+                    }
+                    , "lon": config.lon
+                    , "lat": config.lat
+                }, null, 4) );
+            }
+            renderer.render(scene, camera);
+        };
+
+        container = document.getElementById( 'container' );
+
+        camera = config.camera;
+        camera.target = new THREE.Vector3( 0, 0, 0 );
+
+        controls = new THREE.DeviceOrientationControls( camera );
+        if (isDesktop) {
+            controls.enabled = false;
+        }
+
+        scene = new THREE.Scene();
+        scene.add(config.cameraHelper);
+
+        var geometry = new THREE.SphereGeometry( 500, 64, 32 );
+        geometry.scale( - 1, 1, 1 );
+        material = new THREE.MeshBasicMaterial( {
+            map: new THREE.TextureLoader().load( 'texture1.jpg' )
+        } );
+        var mesh = new THREE.Mesh( geometry, material );
+        scene.add( mesh );
+
+        if( Detector.webgl ){
+            renderer = new THREE.WebGLRenderer({
+                antialias: true
+              , preserveDrawingBuffer: true
+            });
+        } else {
+            renderer = new THREE.CanvasRenderer();
+        }
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = 0;
+        container.appendChild(renderer.domElement);
+
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }, false);
+
+        container.addEventListener( 'mousedown', function(event) {
+            event.preventDefault();
+            isUserInteracting = true;
+            onPointerDownPointerX = event.clientX;
+            onPointerDownPointerY = event.clientY;
+            onPointerDownLon = config.lon;
+            onPointerDownLat = config.lat;
+        }, false );
+        // $("#cursor-log")[0].addEventListener('mousemove', function(event) { });
+        container.addEventListener( 'mousemove', function(event) {
+            if ( isUserInteracting === true ) {
+                config.lon = ( onPointerDownPointerX - event.clientX ) * 0.1 + onPointerDownLon;
+                config.lat = ( event.clientY - onPointerDownPointerY ) * 0.1 + onPointerDownLat;
+            }
+            var $cursor = $("#cursor-log");
+            var array = [event.clientX / window.innerWidth, event.clientY / window.innerHeight];
+            onClickPosition.fromArray( array );
+            mouse.set( ( onClickPosition.x * 2 ) - 1, - ( onClickPosition.y * 2 ) + 1 );
+            raycaster.setFromCamera( mouse, camera );
+            var intersects = raycaster.intersectObjects( scene.children, true );
+            if ( intersects.length > 0 && intersects[0].uv) {
+                var uv = intersects[0].uv;
+                var lon = uv.x * 360;
+                var lat = (uv.y-0.5) * 180;
+                $("#cursor-log-code")[0].innerHTML = JSON.stringify({
+                    "lon": lon.toFixed(5),
+                    "lat": lat.toFixed(5)
+                },null,4);
+                var left = event.clientX - $cursor.width()/2;
+                var bottom = window.innerHeight - event.clientY + 40;
+                $cursor.css({
+                    "left": left,
+                    "right": "",
+                    "top": "",
+                    "bottom": bottom
+                }).show();
+            }
+        }, false );
+        container.addEventListener( 'mouseup', function(event) {
+            isUserInteracting = false;
+        }, false );
+        container.addEventListener( 'wheel', function(event) {
+            var fov = camera.fov + event.deltaY * 0.05;
+            camera.fov = THREE.Math.clamp(Math.round(fov), 10, 100);
+            config.fov = camera.fov; gui.updateDisplay();
+            camera.updateProjectionMatrix();
+        }, false );
+
+        container.addEventListener( 'dragover', function ( event ) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        }, false );
+        container.addEventListener( 'dragenter', function ( event ) {
+            document.body.style.opacity = 0.5;
+        }, false );
+        container.addEventListener( 'dragleave', function ( event ) {
+            document.body.style.opacity = 1;
+        }, false );
+        container.addEventListener( 'drop', function ( event ) {
+            event.preventDefault();
+            var reader = new FileReader();
+            reader.addEventListener( 'load', function ( event ) {
+                loadTexture( event.target.result );
+            }, false );
+            reader.readAsDataURL( event.dataTransfer.files[ 0 ] );
+            document.body.style.opacity = 1;
+        }, false );
+
+        gui.add(config, 'fov').min(10).max(100).step(1).listen().name("视场角").onChange(function(value){
+            if (config.fov !== camera.fov) {
+                camera.fov = value;
+                camera.updateProjectionMatrix();
+            }
+        });
+        gui.add(config.cameraHelper, 'visible').name("显示十字丝").listen();
+        gui.add(config, 'showPic').name("显示原图").onFinishChange(function(show){
+            if (show) { $(".pic").show(); } else { $(".pic").hide(); }
+        });
+        gui.add(config, 'showLog').name("显示调试信息").onFinishChange(function(show){
+            if (show) { $(".log").show(); } else { $(".log").hide(); }
+        });
+        gui.add(config, 'showQR').name("显示二维码").onFinishChange(function(show){
+            if (show) { $(".qr").show(); } else { $(".qr").hide(); }
+        });
+
+        var tex = gui.addFolder('全景图'); tex.closed = false;
+        tex.add(config, 'loadTexture').name("选择全景图");
+        tex.add(config, 'textureSrc', { "仪器馆1": "texture1.jpg", "仪器馆2": "texture2.jpg", "Three.js 图": "texture.jpg" } ).onChange(function(value){
+            loadTexture( value );
+        }).name("切换全景图");
+        tex.add(config, 'loadTextureTip').name("Tip");
+
+        if (isDesktop) {
+            var nav = gui.addFolder('导航');
+            nav.add(config, 'resetView').name("重置方向");
+            nav.add(config, 'autoUpdateLon').name("水平自动浏览");
+            nav.add(config, 'lon').min(0).max(360).step(1).name("Lon").listen();
+            nav.add(config, 'lat').min(-85).max(85).step(1).name("Lat").listen();
+        }
+        var ref = gui.addFolder('更多示例');
+        ref.add(config, 'exampleDual').name("全景图配准");
+        ref.add(config, 'exampleDual2').name("全景图配准2");
+        ref.add(config, 'exampleDual3').name("全景图配准3");
+        ref.add(config, 'aboutPage').name("About");
+
+        animate();
+
+    }, false);
+
+</script>
+
+</body>
+</html>

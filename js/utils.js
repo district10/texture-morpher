@@ -194,6 +194,30 @@ var _Util = function() {
         };
     };
 
+    this.pos2name = function(x, y) {
+        return x.toFixed(0)+"-"+y.toFixed(0);
+    };
+    this.pos2vec = function(x, y, r, w, h) {
+        var w = w || 4096,
+            h = h || 2048;
+        var xyz = Util.lonlat2xyz(x/w*360-180,y/h*180, r);
+        return new THREE.Vector3(xyz.x, xyz.y, xyz.z);
+    };
+    this.xy2uv = function (x,y, w, h) {
+        var w = w || 4096,
+            h = h || 2048;
+        return new THREE.Vector2( (x/w)+0.5, (y/h)+0.5 );
+    };
+
+    this.lerp = function(a,b,t) {
+        return (1-t)*a+t*b;
+    };
+    this.lerpDirection = function(v1,v2,t) {
+        var angle = v1.angleTo(v2);
+        var axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        return v1.clone().applyAxisAngle(axis, angle*t).normalize();
+    };
+
     return _this;
 };
 
