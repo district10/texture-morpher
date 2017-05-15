@@ -50,6 +50,9 @@
         var _this = this;
 
         this.benchmark = false;
+        this.useSphereTri = false;
+
+        this.autorot = 0;
 
         this.lastProgress = -1.0;
         this.progress = 0.0;
@@ -206,7 +209,8 @@
                     dualTriMesh.update(
                         v[0].clone().setLength(dualTriMesh.radius),
                         v[1].clone().setLength(dualTriMesh.radius),
-                        v[2].clone().setLength(dualTriMesh.radius)
+                        v[2].clone().setLength(dualTriMesh.radius),
+                        config.useSphereTri
                     );
                 } else {
                     dualTriMesh.init(
@@ -225,7 +229,9 @@
                             uv3: { x: uv3p.x, y: uv3p.y },
                             material: materialB
                         },
-                        config.nsep
+                        config.nsep,
+                        dualTriMesh.radius,
+                        config.useSphereTri
                     );
                 }
             };
@@ -296,6 +302,7 @@
                         controlsDeviceOri.update();
                     }
                 } else {
+                    camera.lon += config.autorot/5;
                     if (camera.lon > 360) { camera.lon -= 360; }
                     if (camera.lon <   0) { camera.lon += 360; }
                     camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
@@ -409,6 +416,8 @@
         gui.add(config, 'applyProgress').name("过渡");
         gui.add(config, 'benchmark').name("压力测试");
         gui.add(config, 'toggleCamera').name("切换相机");
+        gui.add(config, 'autorot').min(-5).max(+5).step(1).listen().name("自动浏览");
+        // gui.add(config, 'useSphereTri').name("精细三角面片");
         gui.add(config, 'fov').min(10).max(150).step(1).listen().name("视场角").onChange(function(value){
             if (config.fov !== camera.fov) {
                 camera.fov = value;

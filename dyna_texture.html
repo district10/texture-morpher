@@ -138,6 +138,8 @@
         var _this = this;
         this.debug = false;
 
+        this.autorot = 0;
+
         this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
 
         this.benchmark = false;
@@ -272,6 +274,7 @@
                         controlsDeviceOri.update();
                     }
                 } else {
+                    camera.lon += config.autorot/5;
                     if (camera.lon > 360) { camera.lon -= 360; }
                     if (camera.lon <   0) { camera.lon += 360; }
                     camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
@@ -377,6 +380,7 @@
         gui.add(config, 'applyProgress').name("过渡");
         gui.add(config, 'benchmark').name("压力测试");
         gui.add(config, 'toggleCamera').name("切换相机");
+        gui.add(config, 'autorot').min(-5).max(+5).step(1).listen().name("自动浏览");
         gui.add(config, 'fov').min(10).max(150).step(1).listen().name("视场角").onChange(function(value){
             if (config.fov !== camera.fov) {
                 camera.fov = value;

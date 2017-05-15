@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>Texture Morpher</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="user-scalable=no, initial-scale=1">
+    <link rel="stylesheet" href="css/jquery-ui.min.css" type="text/css" />
+    <link rel="stylesheet" href="css/dat-gui-light-theme.css" type="text/css" />
+    <link rel="stylesheet" href="css/toastr.min.css" type="text/css" />
+    <style>
+        body.move, body.move *                   { cursor: move !important; }
+        body.crosshair, body.crosshair *        { cursor: crosshair !important; }
+        body.pointer, body.pointer *             { cursor: pointer !important; }
+        body.all-scroll, body.all-scroll *      { cursor: all-scroll !important; }
+        li.pair input { width: 80px; }
+        li.pair {
+            opacity: 0.8;
+            display: block;
+        }
+        li.pair * {
+            padding: 0;
+            margin: 0;
+        }
+        li.pair.invalid {
+            opacity: 0.2;
+        }
+        #app {
+            padding: 0;
+            margin: 0;
+            padding-left: 10px;
+            overflow: auto;
+        }
+        .pairs, .pair {
+            width: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        body {
+            z-index: -1000;
+            overflow: auto;
+        }
+        .main-panel {
+            position: absolute;
+            width: 800px;
+            height: 600px;
+            left: 75%;
+            top: 50%;
+            transform: translate(-100%, -50%);
+        }
+        .sidebar {
+            position: absolute;
+            width: 250px;
+            height: 600px;
+            left: 75%;
+            top: 50%;
+            transform: translate(0, -50%);
+        }
+        .sidebar > ul, .sidebar > ul > li {
+            width: 100%;
+        }
+        .tab {
+            // width: 95%; height: 88%;
+        }
+        .tab > canvas {
+            transform: translate(-22px, 10px);
+        }
+        #canvas {
+            border: 1px solid red;
+            transform-origin: top left;
+        }
+        .image {
+            max-width: 100%; max-height: 100%;
+        }
+        #tabs-3 {
+            overflow: auto;
+        }
+        #tabs-4 canvas.mousedown { cursor: pointer !important; }
+        .gui {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .pair {
+            list-style: none;
+        }
+    </style>
+    <script src="js/jquery.min.js"></script>
+    <script src="js/jquery-ui.min.js"></script>
+    <script src="js/qrcode.min.js"></script>
+    <script>
+        $(function(){
+            $( ".main-panel" ).tabs();
+        });
+    </script>
+</head>
+<body>
+
+<!--
+<a href="http://github.com/district10/texture-morpher"><img style="position: absolute; top: 0; left: 0; border: 0;" src="https://camo.githubusercontent.com/567c3a48d796e2fc06ea80409cc9dd82bf714434/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f6c6566745f6461726b626c75655f3132313632312e706e67" alt="Fork me on GitHub" data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_left_darkblue_121621.png"></a>
+-->
+
+<div class="main-panel"><ul>
+    <li><a href="#tabs-0">Editor</a></li>
+    <li><a href="#tabs-1">T1</a></li>
+    <li><a href="#tabs-2">T2</a></li>
+    <li><a href="#tabs-3">Tx</a></li>
+    <li><a href="#tabs-4">Sphere</a></li>
+    <li><a href="#tabs-5">SPHERE</a></li>
+    <li><a href="#tabs-6">Help</a></li></ul>
+    <div id="tabs-0" class="tab"></div>
+    <div id="tabs-1" class="tab"><img id="image1" class="image" src="texture1.jpg" alt="image1" /></div>
+    <div id="tabs-2" class="tab"><img id="image2" class="image" src="texture2.jpg" alt="image2" /></div>
+    <div id="tabs-3" class="tab"><canvas id="canvas"></canvas></div>
+    <div id="tabs-4" class="tab"></div>
+    <div id="tabs-5" class="tab"></div>
+    <div id="tabs-6" class="tab">
+        <a target="_blank" href="README.html">见文档</a>
+        <ul>
+            <li>压力测试：<a href="dyna_texture.html">动态全景图</a><br /><div id="qrcode1"></div></li>
+            <li>压力测试：<a href="dyna_sphere.html" >动态全景球</a><br /><div id="qrcode2"></div></li>
+        </ul>
+    </div>
+</div>
+<div class="sidebar" id="app">
+    <div class="header">Pair List</div>
+    <ul class="pairs">
+        <li v-for="pair in pairs"
+            class="pair"
+            :class="{ invalid: !pair.valid }"
+            @mouseenter="activate(pair)"
+            @mouseleave="deactivate(pair)">
+            <div class="view">
+                <span class="point1">
+                    <input type="number" @keyup="modified(pair)" @click="modified(pair)" step="1" title="x1" v-model="pair.x1">
+                    <input type="number" @keyup="modified(pair)" @click="modified(pair)" step="1" title="y1" v-model="pair.y1">
+                </span><br/>
+                <span class="point2">
+                    <input type="number" @keyup="modified(pair)" @click.stop.prevent="modified(pair)" step="1" title="x2" v-model="pair.x2">
+                    <input type="number" @keyup="modified(pair)" @click.stop.prevent="modified(pair)" step="1" title="y2" v-model="pair.y2">
+                </span>
+                <button class="apply" @dblclick="removePair(pair)">X</button>
+            </div>
+        </li>
+    </ul>
+</div>
+
+<script src="js/d3.v4.min.js"></script>
+<script src="js/dat.gui.min.js"></script>
+<script src="js/three.js"></script>
+<script src="js/DeviceOrientationControls.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/tween.min.js"></script>
+<script src="js/toastr.min.js"></script>
+<script src="js/vue.js"></script>
+<!--<script src="js/object.watch.js"></script>-->
+<script src="js/utils.js"></script>
+<script>
+    "use strict";
+    (function() {
+        var url = window.location.toString();
+        var index = url.lastIndexOf('/');
+        var url1 = url.substring(0,index)+'/dyna_texture.html';
+        var url2 = url.substring(0,index)+'/dyna_sphere.html';
+        new QRCode(document.getElementById("qrcode1"), url1);
+        new QRCode(document.getElementById("qrcode2"), url2);
+    })();
+
+    var TriMesh = function(n, radius, useVertexNormals) {
+        var _this = this;
+        this.n = n;
+        this.radius = radius;
+        this.group = new THREE.Group();
+        this.useVertexNormals = useVertexNormals || false;
+
+        this.index = function(i,j) {
+            return parseInt(i*(i+1)/2+j);
+        };
+        this.bary = function(i,j) {
+            var n = _this.n;
+            return {
+                x: (n-1-i)/(n-1),
+                y: (i-j)/(n-1),
+                z: j/(n-1)
+            };
+        };
+        this.traverse = function(cb) {
+            var n = _this.n;
+            var cb = cb || function(){};
+            for (var i = 0; i <= n-1; ++i) {
+                for (var j = 0; j <= i; ++j) {
+                    cb(i,j);
+                }
+            }
+        };
+        this.a = new THREE.Vector3();
+        this.b = new THREE.Vector3();
+        this.c = new THREE.Vector3();
+        this.uv1 = new THREE.Vector2();
+        this.uv2 = new THREE.Vector2();
+        this.uv3 = new THREE.Vector2();
+        this.position = function(i,j) {
+            var b = _this.bary(i,j);
+            var v = new THREE.Vector3();
+            v.x = b.x*_this.a.x + b.y*_this.b.x + b.z*_this.c.x;
+            v.y = b.x*_this.a.y + b.y*_this.b.y + b.z*_this.c.y;
+            v.z = b.x*_this.a.z + b.y*_this.b.z + b.z*_this.c.z;
+            // todo: use lerp
+            return v;
+        };
+        this.uv = function(i,j) {
+            var b = _this.bary(i,j);
+            var v = new THREE.Vector2();
+            v.x = b.x*_this.uv1.x + b.y*_this.uv2.x + b.z*_this.uv3.x;
+            v.y = b.x*_this.uv1.y + b.y*_this.uv2.y + b.z*_this.uv3.y;
+            return v;
+        };
+        this.update = function(a,b,c) {
+            var n = _this.n;
+            _this.a.copy(a.clone().normalize());
+            _this.b.copy(b.clone().normalize());
+            _this.c.copy(c.clone().normalize());
+            if (_this.group.children.length > 0) {
+                var mesh = _this.group.children[0];
+                _this.traverse(function(i,j){
+                    var index = _this.index(i,j);
+                    mesh.geometry.vertices[index].copy(_this.position(i,j).setLength(_this.radius));
+                    if (_this.useVertexNormals) {
+                        mesh.geometry.vertexNormals[index].copy(mesh.geometry.vertices[index].clone().negate().normalize());
+                    }
+                });
+                mesh.geometry.verticesNeedUpdate = true;
+                if (_this.useVertexNormals) {
+                    mesh.geometry.normalsNeedUpdate = true;
+                }
+            }
+        };
+        this.init = function(a,b,c, uv1, uv2, uv3, material, n, radius) {
+            _this.a.copy(a);
+            _this.b.copy(b);
+            _this.c.copy(c);
+            _this.uv1.copy(uv1);
+            _this.uv2.copy(uv2);
+            _this.uv3.copy(uv3);
+            _this.material = material;
+            _this.n = n;
+            _this.radius = radius;
+
+            _this.group.children = [];
+            var geometry = new THREE.Geometry();
+            if (_this.useVertexNormals) {
+                geometry.vertexNormals = [];
+            }
+            _this.traverse(function(i,j){
+                var v = _this.position(i,j);
+                geometry.vertices.push(v.setLength(_this.radius));
+                if (_this.useVertexNormals) {
+                    geometry.vertexNormals.push(v.clone().negate().normalize());
+                }
+            });
+            geometry.verticesNeedUpdate = true;
+            if (_this.useVertexNormals) {
+                geometry.normalsNeedUpdate = true;
+            }
+            geometry.faceVertexUvs[0] = [];
+            for (var i = 1; i <= n-1; ++i) {
+                for (var j = 0; j < i; ++j) {
+                    //             A(i-1,j)
+                    //
+                    //               /\
+                    //              /__\
+                    //
+                    //         B(i,j)   C(i,j+1)
+                    var ix = _this.index(i-1,j);
+                    var iy = _this.index(i,j);
+                    var iz = _this.index(i,j+1);
+                    geometry.faces.push( new THREE.Face3(ix,iy,iz) );
+                    geometry.faceVertexUvs[0].push([
+                        _this.uv(i-1,j),
+                        _this.uv(i,j),
+                        _this.uv(i,j+1)
+                    ]);
+                }
+            }
+            for (var i = 1; i <= n-2; ++i) {
+                for (var j = 0; j < i; ++j) {
+                    //        B(i,j)   A(i,j+1)
+                    //              ____
+                    //              \  /
+                    //               \/
+                    //
+                    //           C(i+1,j+1)
+                    var ix = _this.index(i,j+1);
+                    var iy = _this.index(i,j);
+                    var iz = _this.index(i+1,j+1);
+                    geometry.faces.push( new THREE.Face3(ix,iy,iz) );
+                    geometry.faceVertexUvs[0].push([
+                        _this.uv(i,j+1),
+                        _this.uv(i,j),
+                        _this.uv(i+1,j+1)
+                    ]);
+                }
+            }
+
+            var mesh = new THREE.Mesh(geometry,material);
+            _this.mesh = mesh;
+            _this.group.add(mesh);
+        };
+    };
+
+    var DualTriMesh = function(n, radius, useVertexNormals) {
+        var _this = this;
+        if (n === undefined) {
+            _this.n = 5;
+        } else {
+            _this.n = n;
+        }
+        if (radius === undefined) {
+            _this.radius = 500;
+        } else {
+            _this.radius = radius;
+        }
+        if (useVertexNormals === undefined) {
+            _this.useVertexNormals = false;
+        } else {
+            _this.useVertexNormals = useVertexNormals;
+        }
+        this.group = new THREE.Group();
+        this.group.dualTriMesh = _this;
+
+        this.triMesh1 = new TriMesh(_this.n, _this.radius*1.0, _this.useVertexNormals);
+        this.triMesh2 = new TriMesh(_this.n, _this.radius*1.2, _this.useVertexNormals);
+        this.group.add(_this.triMesh1.group);
+        this.group.add(_this.triMesh2.group);
+        this.update = function(a,b,c) {
+            _this.triMesh1.update(a,b,c);
+            _this.triMesh2.update(a,b,c);
+        };
+        this.init = function(a,b,c, config1, config2, n, radius) {
+            if (n !== undefined) { _this.n = n; }
+            if (radius !== undefined) { _this.radius = radius; }
+            _this.triMesh1.init(
+                a, b, c,
+                config1.uv1, config1.uv2, config1.uv3, config1.material,
+                _this.n, _this.radius*1.0
+            );
+            _this.triMesh2.init(
+                a, b, c,
+                config2.uv1, config2.uv2, config2.uv3, config2.material,
+                _this.n, _this.radius*1.2
+            );
+        };
+    };
+
+    var sphereRadius = 200;
+    function lerp(a,b,t) {
+        return (1-t)*a+t*b;
+    }
+    function lerpDirection(v1,v2,t) {
+        var angle = v1.angleTo(v2);
+        var axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        return v1.clone().applyAxisAngle(axis, angle*t).normalize();
+    }
+    function pos2name(x, y) {
+        return x.toFixed(0)+"-"+y.toFixed(0);
+    }
+    function pos2vec(x, y, r) {
+        var xyz = Util.lonlat2xyz(x/4096*360-180,y/2048*180, r);
+        return new THREE.Vector3(xyz.x, xyz.y, xyz.z);
+    }
+    function vec2pos(v) {
+        var lonlat = Util.xyz2lonlat(v.x,v.y,v.z);
+        return new THREE.Vector2(
+            (lonlat.lon/360-0.5)*4096,
+            lonlat.lat/180*2048
+        );
+    }
+    function pack(r, ref1, ref2, ref3) {
+        var ret = {};
+        var r1 = new THREE.Vector2(ref1.x1, ref1.y1),
+            r2 = new THREE.Vector2(ref2.x1, ref2.y1),
+            r3 = new THREE.Vector2(ref3.x1, ref3.y1),
+            r1p = new THREE.Vector2(ref1.x2, ref1.y2),
+            r2p = new THREE.Vector2(ref2.x2, ref2.y2),
+            r3p = new THREE.Vector2(ref3.x2, ref3.y2);
+        ret.from = new THREE.Vector2(r.x, r.y);
+        ret.barycentric = Util.cartesian2barycentric(r,r1,r2,r3);
+        ret.to = Util.barycentric2cartesian(ret.barycentric,r1p,r2p,r3p);
+        return ret;
+    }
+    function baryFromCartInFace3(face3, cart) {
+        return THREE.Triangle.barycoordFromPoint(cart,
+            face3.geometry.vertices[0],
+            face3.geometry.vertices[1],
+            face3.geometry.vertices[2]
+        );
+    }
+    function cartFromBaryInTriangle(tri, bary) {
+        var x = bary.x*tri.a.x + bary.y*tri.b.x + bary.z*tri.c.x;
+        var y = bary.x*tri.a.y + bary.y*tri.b.y + bary.z*tri.c.y;
+        var z = bary.x*tri.a.z + bary.y*tri.b.z + bary.z*tri.c.z;
+        return new THREE.Vector3(x,y,z);
+    }
+    function tweetTexture(obj, index, uv) {
+        var ws = obj.geometry.parameters.widthSegments;
+        var hs = obj.geometry.parameters.heightSegments;
+        var i = parseInt(index/(ws+1)),
+            j = parseInt(index%(ws+1));
+        if (i <= 0 || i >= hs || j <= 0 || j >= ws) {
+            console.log("margin!: "+i+", "+j);
+            return;
+        }
+
+        var m = ((i)-1)*2 * (ws) + (j)*2 - 1,
+            n = m + (ws)*2 +1;
+        obj.geometry.faceVertexUvs[0][m  ][1].copy(uv); // b
+        obj.geometry.faceVertexUvs[0][m+1][1].copy(uv); // b
+        obj.geometry.faceVertexUvs[0][m+2][0].copy(uv); // a
+
+        obj.geometry.faceVertexUvs[0][n  ][0].copy(uv); // a
+        obj.geometry.faceVertexUvs[0][n-1][2].copy(uv); // c
+        obj.geometry.faceVertexUvs[0][n-2][2].copy(uv); // c
+    }
+</script>
+
+<script>
+    "use strict";
+
+    var raycaster = new THREE.Raycaster();
+    var castFace3 = function ( point, camera ) {
+        var objects = config.SPHERE.group.children;
+        var mouse = new THREE.Vector2( ( point.x * 2 ) - 1, - ( point.y * 2 ) + 1  );
+        raycaster.setFromCamera( mouse, camera );
+        var hit = raycaster.intersectObjects( objects, true );
+        if ( hit.length > 0) {
+            var o = hit[0];
+            var obj = o.object;
+            obj.material = config.redFrameMaterial;
+        }
+    };
+    var castFace3FromVertex = function (v,i) {
+        var objects = config.SPHERE.group.children;
+        var sphere = config.SPHERE.s1;
+        raycaster.ray.origin.copy(sphere.position);
+        raycaster.ray.direction.copy(v.clone().normalize());
+        var hit = raycaster.intersectObjects( objects, true );
+        if ( hit.length > 0) {
+            var o = hit[0];
+            var obj = o.object;
+            // obj.material = config.redFrameMaterial;
+            return obj;
+        } else {
+            return null;
+        }
+    };
+    var cast = function ( point, camera, mode ) {
+        var objects = [config.group1, config.group2];
+        var mouse = new THREE.Vector2( ( point.x * 2 ) - 1, - ( point.y * 2 ) + 1  );
+        raycaster.setFromCamera( mouse, camera );
+        var hit = raycaster.intersectObjects( objects, true );
+        if ( hit.length > 0 && hit[0].uv && mode !== undefined) {
+            var o = hit[0];
+            var p = o.point;
+            var uv = o.uv;
+            var obj = o.object;
+            if (mode === config.CastMode.GetPosition) {
+                p.uv = {
+                    x: uv.x,
+                    y: uv.y
+                };
+                return p;
+            } else if (mode === config.CastMode.NewPair) {
+                var pair;
+                if (p.z > 0) { // group1
+                    pair = new Pair({ x1: p.x, y1: p.y, u1: uv.x, v1: uv.y });
+                } else { // group2
+                    pair = new Pair({ x2: p.x, y2: p.y, u2: uv.x, v2: uv.y });
+                }
+                pushPair(pair); // push if valid
+            } else if (mode === config.CastMode.GetPoint) {
+                if (obj.pair !== undefined && obj.pair.isPair === true) {
+                    return obj;
+                } else {
+                    return null;
+                }
+            }
+        } else {
+            return null;
+        }
+    };
+
+    var _renderer = new THREE.WebGLRenderer({
+        antialias: true,
+    });
+    _renderer.setSize(4096, 2048);
+
+    var point = new THREE.SphereGeometry( 5, 64, 32 );
+    var smallPoint = new THREE.SphereGeometry( 2, 32, 16 );
+    var p1mat = new THREE.MeshBasicMaterial( { color: 0x0000ff, side: THREE.DoubleSide } );
+    var p2mat = new THREE.MeshBasicMaterial( { color: 0x00ff00, side: THREE.DoubleSide } );
+    var pxmat = new THREE.MeshBasicMaterial( { color: 0xffffff, side: THREE.DoubleSide } );
+    var pymat = new THREE.MeshBasicMaterial( { color: 0xffff00, side: THREE.DoubleSide } );
+
+    (function(){
+        return;
+        // code fragments
+        var geometry = new THREE.SphereGeometry( 20, 64, 32 );
+        var pxmat = new THREE.MeshBasicMaterial( { color: 0xff0000, side: THREE.DoubleSide } );
+        var geometry = new THREE.Geometry();
+        var material = new THREE.LineBasicMaterial( { color: 0xffffff } );
+        geometry.vertices.push(new THREE.Vector3());
+        geometry.vertices.push(new THREE.Vector3());
+    })();
+
+    var Pair = function(options) {
+        var options = options || {};
+        var x1, y1, u1, v1;
+        var x2, y2, u2, v2;
+        var p1 = new THREE.Mesh( point, p1mat );
+        var p2 = new THREE.Mesh( point, p2mat );
+        var geometry = new THREE.Geometry();
+        var material = new THREE.LineBasicMaterial( { color: 0x40e0d0 } );
+        if (options.loading === true) {
+            x1 = options.x1;
+            x2 = options.x2;
+            y1 = options.y1;
+            y2 = options.y2;
+            u1 = x1/2048 + 0.5;
+            v1 = (-y1/1024) + 0.5;
+            u2 = x2/2048 + 0.5;
+            v2 = (-y2/1024) + 0.5;
+        } else if (options.x1 !== undefined) {
+            x1 = options.x1;
+            y1 = options.y1;
+            u1 = options.u1;
+            v1 = options.v1;
+            x2 = x1;
+            y2 = y1;
+            u2 = u1;
+            v2 = v1;
+        } else if (options.x2 !== undefined) {
+            x2 = options.x2;
+            y2 = options.y2;
+            u2 = options.u2;
+            v2 = options.v2;
+            x1 = x2;
+            y1 = y2;
+            u1 = u2;
+            v1 = v2;
+        } else {
+            return { valid: false };
+        }
+        p1.position.set(x1,y1,0);
+        p2.position.set(x2,y2,0);
+        geometry.vertices.push(new THREE.Vector3(x1,y1,config.group1.position.z));
+        geometry.vertices.push(new THREE.Vector3(x2,y2,config.group2.position.z));
+        var link = new THREE.Line( geometry, material );
+        var ret = {
+            x1: x1, y1: y1,
+            x2: x2, y2: y2,
+            u1: u1, v1: v1,
+            u2: u2, v2: v2,
+            p1: p1, p2: p2,
+            link: link,
+            valid: true,
+            isPair: true
+        };
+        p1.pair = ret;
+        p2.pair = ret;
+        link.pair = ret;
+        return ret;
+    };
+
+    var Config = function() {
+        var _this = this;
+
+        this.toggleSPHERE = function() {
+            config.SPHERE.controls.enabled = !config.SPHERE.controls.enabled;
+            if (config.SPHERE.controls.enabled) {
+                config.SPHERE.camera.position.set(1000,0,0);
+                config.SPHERE.controls.target.set(0,0,0);
+            } else {
+                config.SPHERE.camera.position.set(0,0,0);
+            }
+        };
+
+        this.nsep = 5;
+        this.speed = 3;
+
+        this.minFov = 10;
+        this.maxFov = 150;
+
+        this.lastSphereProgress = -1;
+        this.sphereProgress = 0.0;
+        this.morph = function(t) {
+            if ( config && config.SPHERE && config.SPHERE.group ) {
+                config.SPHERE.group.children.forEach(function(face3){
+                    if (face3.isTriMesh === true && face3.lerpAndApply !== undefined) {
+                        face3.lerpAndApply(t); // face3.holds.forEach(function (h) { });
+                    }
+                });
+                config.SPHERE.groupDual.children.forEach(function(face3Dual){
+                    face3Dual.dualTriMesh.updatePosition();
+                });
+                config.SPHERE.s1.material.opacity = 1-t;
+                config.plane1.material.opacity = 1-t;
+                config.lastSphereProgress = config.sphereProgress;
+            }
+        };
+        this.morphBtn = function() {
+            $(".close-button").click();
+            _this.sphereProgress = 0.0;
+            var t1 = new TWEEN.Tween(_this)
+                .delay(100)
+                .to({ sphereProgress: 1.0 }, 5000);
+            t1.start();
+        };
+
+        this.saveEditor = function() {
+            var url = config.editor.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+            window.open(url, '_blank');
+            window.focus();
+        };
+
+        this.saveSphere = function() {
+            var url = config.sphere.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+            window.open(url, '_blank');
+            window.focus();
+        };
+        this.saveSPHERE = function() {
+            var url = config.SPHERE.renderer.domElement.toDataURL("image/png"); // .replace(/^data:image\/[^;]/, 'data:application/octet-stream');
+            window.open(url, '_blank');
+            window.focus();
+        };
+
+        this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
+        this.yellowFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true, side: THREE.DoubleSide, transparent: true });
+        this.redFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, side: THREE.DoubleSide, transparent: true });
+        this.helpers = [];
+        this.progress = 0.0;
+        this.processedProgress = -100;
+        this.updateTriangulation = (function () {
+            var lastValue = -1;
+            return function(value){
+                if (lastValue !== value) {
+                    lastValue = value;
+                    config.groupx.children.forEach(function(t){
+                        if (t.isPairTriangle === true) {
+                            t.updatePosition(value);
+                        }
+                    });
+                }
+            }
+        })();
+
+        this.debug = false;
+        this.debug1 = function() {
+            $(".close-button").click();
+            var t1 = new TWEEN.Tween(_this)
+                .delay(100)
+                .to({ progress: 1.0 }, 5000);
+            t1.start();
+        };
+
+        var inProgress = function(f,t) {
+            return function() {
+                $(".close-button").click();
+                config.sphere.camera.fov = 50;
+                config.sphere.camera.lat = -8;
+                var t1 = new TWEEN.Tween(_this)
+                    .to({ progress: f }, 100)
+                    .onComplete(function(){ toastr.info("t1 done"); });
+
+                var t2 = new TWEEN.Tween(config.sphere.camera)
+                    .delay(100)
+                    .to({ lon: 175 }, 1000)
+                    .onComplete(function(){ toastr.info("t2 done"); });
+
+                var t3 = new TWEEN.Tween(_this)
+                    .delay(1000)
+                    .to({ progress: t }, 3000)
+                    .onComplete(function(){ toastr.info("t3 done"); });
+
+                t2.chain(t3);
+                t1.chain(t2);
+                t1.start();
+            };
+        };
+        this.forward  = inProgress(0.0, 1.0);
+        this.backward = inProgress(1.0, 0.0);
+
+        this.applyTriangulation = function(){
+            var sites = [];
+            var refs = {};
+            var faces = [];
+            var xmin = 100000000, xmax = 0, ymin = 10000000000, ymax = 0;
+            app.pairs.forEach(function(pair){
+                // only process valid & visible pairs
+                if (pair.valid && pair.p1.visible) {
+                    var p = [pair.x1, pair.y1];
+                    refs[pos2name(p[0],p[1])] = pair;
+                    sites.push(p);
+                    if (xmin > p[0]) { xmin = p[0]; }
+                    if (xmax < p[0]) { xmax = p[0]; }
+                    if (ymin > p[1]) { ymin = p[1]; }
+                    if (ymax < p[1]) { ymax = p[1]; }
+                }
+            });
+            var voronoi = d3.voronoi().extent([[xmin-10, ymin-10], [xmax+10, ymax+10]]);
+            var diagram = voronoi(sites);
+            var triangles = diagram.triangles();
+            var index = 0;
+            config.groupx.children = [];
+            config.SPHERE.group.children = [];
+            config.SPHERE.groupDual.children = [];
+            triangles.forEach(function(tri){
+                var p1 = tri[0];
+                var p2 = tri[1];
+                var p3 = tri[2];
+                var p1n = pos2name(p1[0],p1[1]);
+                var p2n = pos2name(p2[0],p2[1]);
+                var p3n = pos2name(p3[0],p3[1]);
+                var ref1 = refs[p1n];
+                var ref2 = refs[p2n];
+                var ref3 = refs[p3n];
+                if ( ref1 !== undefined && ref2 !== undefined && ref3 !== undefined ) {
+                    // editor
+                    var mesh = newPairTriangle(ref1,ref2,ref3);
+                    config.groupx.add(mesh);
+                    faces.push(mesh);
+
+                    // SPHERE
+                    var face3 = triangleOnSphere(ref1,ref2,ref3, sphereRadius);
+                    config.SPHERE.group.add(face3);
+                    var face3Dual = dualFace3OnSphere(face3, sphereRadius*1.2);
+                    config.SPHERE.groupDual.add(face3Dual.group);
+
+                } else {
+                    console.log("bug!");
+                }
+            });
+        };
+
+        var pos1 = new THREE.Vector3(1000,0,0);
+        var pos2 = new THREE.Vector3(1000,0,0);
+
+        this.savePos1 = function() { pos1.copy(config.editor.camera.position); toastr.info("Pos1 Saved" ); };
+        this.savePos2 = function() { pos2.copy(config.editor.camera.position); toastr.info("Pos2 Saved"); };
+        this.loadPos1 = function() { config.editor.camera.position.copy(pos1); toastr.info("Pos1 Loaded" ); };
+        this.loadPos2 = function() { config.editor.camera.position.copy(pos2); toastr.info("Pos2 Loaded"); };
+
+        this.savePairs = function() {
+            var ret = [];
+            app.pairs.forEach(function(pair){
+                if (pair.valid && pair.p1.visible) {
+                    ret.push({
+                        x1: pair.x1,
+                        y1: pair.y1,
+                        x2: pair.x2,
+                        y2: pair.y2
+                    });
+                }
+            });
+            var url = 'data:text/json;charset=utf8,' + encodeURIComponent(JSON.stringify(ret));
+            window.open(url, '_blank');
+            window.focus();
+        };
+        this.loadPairsTxt = function(text) {
+            cleanPairs();
+            var pairs = JSON.parse(text);
+            pairs.forEach(function(pair){
+                var p = new Pair({
+                    loading: true,
+                    x1: pair.x1,
+                    y1: pair.y1,
+                    x2: pair.x2,
+                    y2: pair.y2
+                });
+                pushPair(p);
+            });
+        };
+        this.loadPairs = Util.fileInputReadAsText(_this.loadPairsTxt);
+        this.loadDefaultPairs = function() {
+            $.get('pairs.json', function(data) {
+                config.loadPairsTxt(data);
+            }, 'text');
+        };
+
+        this.CastMode = {
+            GetPosition: 1,
+            GetPoint: 2,
+            NewPair: 3
+        };
+
+        var loadTexture = function(callback) {
+            var cb = callback || $.noop;
+            var $ele = $('<input type="file" />');
+            $ele.on("change", function(e) {
+                var f = e.target.files[0];
+                if (f) {
+                    var r;
+                    (r = new FileReader()).onload = function (event) {
+                        cb(event.target.result);
+                    };
+                    r.readAsDataURL(f);
+                }
+            });
+            return function() {
+                $ele.click();
+            };
+        };
+        this.loadTexture1 = loadTexture(function(src){
+            $image1[0].src = src;
+            // todo, apply texture 1
+            config.plane1.material.map.image.src = src;
+            config.plane1.material.map.needsUpdate = true;
+        });
+        this.loadTexture2 = loadTexture(function(src){
+            $image2[0].src = src;
+            // todo, apply texture 2
+            config.plane2.material.map.image.src = src;
+            config.plane2.material.map.needsUpdate = true;
+        });
+        this.guis = [];
+    };
+    var config = new Config();
+
+    var $editor, $sphere, $SPHERE;
+    var $image1 = $("#image1");
+    var $image2 = $("#image2");
+    var $canvas = $("#canvas");
+    $canvas.hide();
+    //                  editor          t1             t2            tx             Sphere        SPHERE
+    var $tabs = [ $("#tabs-0"), $("#tabs-1"), $("#tabs-2"), $("#tabs-3"), $("#tabs-4"), $("#tabs-5") ];
+    $(_renderer.domElement).appendTo($tabs[3]);
+
+    // gui for each tab
+    (function (indices) {
+        indices.forEach(function(index){
+            var $tab = $tabs[index];
+            var gui = new dat.GUI({ autoPlace: false }); gui.closed = true;
+            $(gui.domElement).addClass('gui').appendTo( $tab );
+            config.guis[index] = gui;
+        });
+    })([0,1,2,3,4,5]);
+
+    config.guis[1].add(config, 'loadTexture1').name("加载图片");
+    config.guis[2].add(config, 'loadTexture2').name("加载图片");
+
+    $canvas[0].width = 1024;
+    $canvas[0].height = 512;
+    var ctx = $canvas[0].getContext('2d');
+    var draw1Image = function(image) {
+        ctx.clearRect( 0, 0, image.width, image.height );
+        ctx.drawImage(image, 0, 0);
+        $canvas[0].width = image.naturalWidth;
+        $canvas[0].height = image.naturalHeight;
+        config.sphere.applyCanvasTexture();
+    };
+
+    // sphere
+    (function (){
+        var texture = new THREE.Texture( _renderer.domElement, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping );
+        texture.needsUpdate = true;
+        var materials = [
+            new THREE.MeshBasicMaterial( { map: texture } ),
+            new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'texture1.jpg' ) } )
+        ];
+        var matIndex = 0;
+        var material = materials[0];
+        var geometry = new THREE.SphereGeometry( 500, 64, 32 ); geometry.scale( - 1, 1, 1 );
+        var mesh = new THREE.Mesh( geometry, material );
+        var scene = new THREE.Scene();
+        scene.add( mesh );
+
+        var width = $tabs[4].width();
+        var height = $tabs[4].height();
+        var renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+        $sphere = $(renderer.domElement);
+        $sphere.appendTo($tabs[4]);
+
+        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 1000);
+        camera.isUserInteracting = false;
+        camera.lon = 169.89999999999998;
+        camera.lat = -3.3000000000000003;
+        camera.onPointerDownPointerX = 0;
+        camera.onPointerDownPointerY = 0;
+        camera.onPointerDownLon = 0;
+        camera.onPointerDownLat = 0;
+        camera.target = new THREE.Vector3( 0, 0, 0 );
+        renderer.domElement.addEventListener( 'mousedown', function(event) {
+            $sphere.addClass("mousedown");
+            camera.isUserInteracting = true;
+            camera.onPointerDownPointerX = event.clientX;
+            camera.onPointerDownPointerY = event.clientY;
+            camera.onPointerDownLon = camera.lon;
+            camera.onPointerDownLat = camera.lat;
+        }, false );
+        renderer.domElement.addEventListener( 'mousemove', function(event) {
+            if ( camera.isUserInteracting === true ) {
+                camera.lon = ( camera.onPointerDownPointerX - event.clientX ) * 0.1 + camera.onPointerDownLon;
+                camera.lat = ( event.clientY - camera.onPointerDownPointerY ) * 0.1 + camera.onPointerDownLat;
+            }
+        }, false );
+        renderer.domElement.addEventListener( 'mouseup', function(event) {
+            $sphere.removeClass("mousedown");
+            camera.isUserInteracting = false;
+        }, false );
+
+        var animate = function() {
+            // window.requestAnimationFrame(animate);
+            if (config.processedProgress !== config.progress) {
+                if (config.processedProgress < 0) {
+                    ++config.processedProgress;
+                } else {
+                    config.processedProgress = config.progress;
+                }
+                texture.needsUpdate = true;
+            }
+            if (camera.lon > 360) { camera.lon -= 360; }
+            if (camera.lon <   0) { camera.lon += 360; }
+            camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
+            var phi = THREE.Math.degToRad( 90 - camera.lat );
+            var theta = THREE.Math.degToRad( camera.lon );
+            camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+            camera.target.y = 500 * Math.cos( phi );
+            camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+            camera.lookAt( camera.target.add(camera.position) );
+            renderer.render(scene, camera);
+        };
+
+        var gui = config.guis[4];
+        gui.add(config, 'saveSphere').name("截图");
+        gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
+        gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
+        gui.add(camera, 'fov').min(config.minFov).max(config.maxFov).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
+        renderer.domElement.addEventListener( 'wheel', function(event) {
+            var fov = camera.fov + event.deltaY * 0.05;
+            camera.fov = THREE.Math.clamp(Math.round(fov), config.minFov, config.maxFov);
+            camera.updateProjectionMatrix();
+        }, false );
+
+        config.sphere = {
+            camera: camera,
+            scene: scene,
+            renderer: renderer,
+            mesh: mesh,
+            animate: animate,
+            applyCanvasTexture: function() {
+                texture.needsUpdate = true;
+            },
+            nextMaterial: function() {
+                matIndex = (matIndex+1)%materials.length;
+                mesh.material = materials[matIndex];
+            },
+            gui: gui
+        };
+    })();
+
+    // editor
+    (function(){
+        var width = $tabs[0].width();
+        var height = $tabs[0].height();
+
+        var scene = new THREE.Scene();
+        var light = new THREE.AmbientLight(0xffffff);
+        scene.add(light);
+
+        (config.ghXZ = new THREE.GridHelper(5000, 10, 0x00ff00, 0x00ff00));
+        (config.ghYZ = new THREE.GridHelper(5000, 10, 0xff0000, 0xff0000)).rotateZ(-Math.PI/2);
+        (config.ghXY = new THREE.GridHelper(5000, 10, 0x0000ff, 0x0000ff)).rotateX(Math.PI/2).rotateY(-Math.PI/2);
+        scene.add(config.ghXZ).add(config.ghYZ).add(config.ghXY);
+        scene.add(config.axisHelper = new THREE.AxisHelper(10000));
+        config.ghXZ.visible = config.ghYZ.visible = config.ghXY.visible = config.axisHelper.visible = false;
+
+        var renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
+        renderer.setClearColor( 0xffffff, 0);
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+        $editor = $(renderer.domElement);
+        $editor.appendTo($tabs[0]);
+
+        var gui = config.guis[0];
+        $(gui.domElement).addClass('gui').appendTo( $tabs[0] );
+        config.showHelpers = false;
+
+        gui.add(config, 'debug').listen().name("调试");
+        gui.add(config, 'saveEditor').name("截图");
+        gui.add(config, 'speed').min(0.5).max(10).step(0.5).name("速度");
+        gui.add(config, 'savePairs').name("保存 Pairs");
+        gui.add(config, 'loadPairs').name("加载 Pairs");
+        gui.add(config, 'loadDefaultPairs').name("加载示例 Pairs");
+        gui.add(config, 'applyTriangulation').name("三角化");
+
+        var group1 = new THREE.Group();
+        var group2 = new THREE.Group();
+        var groupx = new THREE.Group();
+
+        (function(){
+            var texture = new THREE.TextureLoader().load('texture1.jpg');
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
+            var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }); material.transparent = true;
+            var mesh = new THREE.Mesh( geometry, material );
+            group1.add(mesh);
+            config.plane1 = mesh;
+        })();
+        (function(){
+            var texture = new THREE.TextureLoader().load('texture2.jpg');
+            texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+            var material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+            var geometry = new THREE.PlaneGeometry( 4096, 2048, 32, 16 );
+            var mesh = new THREE.Mesh( geometry, material );
+            group2.add(mesh);
+            config.plane2 = mesh;
+        })();
+
+        group1.add(config.plane1);
+        group2.add(config.plane2);
+
+        scene.add(group1);
+        scene.add(group2);
+        scene.add(groupx);
+
+        config.group1 = group1;
+        config.group2 = group2;
+        config.groupx = groupx;
+        config.scene = scene;
+
+        var camera = new THREE.PerspectiveCamera(75, width/height, 1, 1000000);
+        camera.position.set(0,0,4000);
+        camera.lookAt(scene.position);
+        var controls = new THREE.OrbitControls( camera, renderer.domElement );
+        /// gui.domElement).addClass('gui').appendTo( $tabs[0] );
+
+        var isMouseDown = false;
+        renderer.domElement.addEventListener( 'mousedown', function(event) {
+            var $el = $(renderer.domElement);
+            var array = [(event.pageX-$el.offset().left)/$el.width(), (event.pageY-$el.offset().top)/$el.height()];
+            isMouseDown = true;
+            if (event.button === 2) {
+                // right click to add point
+                cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.NewPair );
+            } else {
+                var point = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPoint );
+                if (point) {
+                    config.engagedPoint = point;
+                } else {
+                    config.engagedPoint = null;
+                }
+            }
+        });
+
+        renderer.domElement.addEventListener( 'mousemove', function(event) {
+            if (controls.enabled) { return; }
+            var $el = $(renderer.domElement);
+            var array = [(event.pageX-$el.offset().left)/$el.width(), (event.pageY-$el.offset().top)/$el.height()];
+            var point = config.engagedPoint;
+            if (isMouseDown && point) {
+                // update the engaged one
+                var position = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPosition );
+                if (position) {
+                    point.position.set(position.x, position.y, 0);
+                    var pair = point.pair;
+                    pair.link.geometry.vertices[0].set(pair.p1.position.x, pair.p1.position.y, config.group1.position.z);
+                    pair.link.geometry.vertices[1].set(pair.p2.position.x, pair.p2.position.y, config.group2.position.z);
+                    pair.link.geometry.verticesNeedUpdate = true;
+                }
+                return;
+            } else {
+                var point = cast( new THREE.Vector2().fromArray(array), camera, config.CastMode.GetPoint );
+                if (point) {
+                    setCursorStyle("pointer");
+                } else {
+                    setCursorStyle();
+                }
+            }
+        }, false);
+        renderer.domElement.addEventListener( 'mouseup', function(event) {
+            isMouseDown = false;
+        }, false);
+
+        var cameraOrtho = new THREE.OrthographicCamera(-2048,2048,1024,-1024,100,5000); // left, right, top, bottom, near, far
+        cameraOrtho.position.set(0,0,3000);
+        cameraOrtho.lookAt(scene.position);
+        var cameraOrthoHelper = new THREE.CameraHelper( cameraOrtho );
+        scene.add( cameraOrthoHelper );
+        config.cameraOrthoHelper = cameraOrthoHelper;
+
+        /*
+         gui
+         -  left, right roll a&b
+         - roll a, roll b, 4096x2048
+                <--------------------+---------------
+               groupx    group1      |     group2
+         */
+        var gui = config.guis[0];
+        config.spacing = 1000;
+        config.applySpacing = function(distance) {
+            var distance = distance || config.spacing;
+            group1.position.z =  distance;
+            group2.position.z = -distance;
+            groupx.position.z =  distance * 2;
+        };
+        config.applySpacing();
+
+        // gui.add(controls, 'enabled').listen().name("关闭 OrbitControls");
+        // gui.add(config, 'spacing').min(100).max(1000).step(10).listen().onChange(config.applySpacing).name("间距");
+
+        config.shift = 0;
+        // gui.add(config, 'shift').min(-2048).max(2048).step(1).listen().onChange(function(shift){ group2.position.x = shift; }).name("偏移量");
+        // gui.add(cameraOrtho.position, 'x').min(-2048).max(2048).step(1).name("X");
+        // gui.add(cameraOrtho.position, 'z').min(-3000).max(+3000).step(1).name("Z");
+
+        config.helpers.push(config.cameraOrthoHelper);
+        config.helpers.push(config.axisHelper);
+
+        var animate = function(){
+            window.requestAnimationFrame( animate );
+            TWEEN.update();
+            cameraOrthoHelper.update();
+            if (config.debug === true) {
+                [config.cameraOrthoHelper, config.axisHelper].forEach(function(obj){
+                    obj.visible = false;
+                });
+            }
+
+            controls.update();
+
+            config.updateTriangulation(config.progress);
+
+            renderer.render(scene, camera);
+
+            // if haven't rendered this progress of texture, render it
+            if (config.progress !== config.processedProgress) {
+                {
+                    // stash
+                    config.plane1.material.opacity0 = config.plane1.material.opacity;
+                    config.plane1.material.opacity = 1 - config.progress;
+                    config.helpers.forEach(function(obj){
+                        obj.visible0 = obj.visible;
+                        obj.visible = false;
+                    });
+                    config.whiteFrameMaterial.opacity = 0;
+                }
+                _renderer.render(scene, cameraOrtho);
+                // console.log("rerendered texture.");
+                {
+                    // resume
+                    config.helpers.forEach(function(obj){
+                        obj.visible = obj.visible0 || true;
+                    });
+                    config.plane1.material.opacity = config.plane1.material.opacity0;
+                    config.whiteFrameMaterial.opacity = 1;
+                }
+            }
+            // render sphere
+            config.sphere.animate();
+        };
+        animate();
+
+        config.editor = {
+            scene: scene,
+            camera: camera,
+            renderer: renderer,
+            controls: controls
+        };
+    })();
+
+    var app = new Vue({
+        data: { pairs: [] },
+        methods: {
+            removePair: function (pair) {
+                pair.valid = pair.p1.visible = pair.p2.isible = pair.link.visible = false;
+                $("li.pair.invalid input").prop('disabled', true);
+            },
+            modified: function (pair) {
+                updatePair(pair);
+                // toastr.info(JSON.stringify(pair));
+            },
+            activate: function (pair) {
+                pair.active = true;
+            },
+            deactivate: function (pair) {
+            }
+        }
+    });
+    app.$mount('#app');
+
+    $("li.pair.invalid input").prop('disabled', true);
+
+    window.addEventListener('keydown', function(){
+        var code = event.keyCode;
+        var ctrl = event.ctrlKey;
+        if (16 <= code && code <= 18) { // just shift, control, alt
+            return;
+        }
+        switch (code) {
+            case 48: // 0
+                config.toggleSPHERE();
+                break;
+
+            case 49: // 1
+                if (ctrl) {
+                    config.savePos1();
+                } else {
+                    config.loadPos1();
+                }
+                break;
+            case 50: // 2
+                if (ctrl) {
+                    config.savePos2();
+                } else {
+                    config.loadPos2();
+                }
+                break;
+
+            case 51: // 3
+                config.savePos1();
+                break;
+            case 52: // 4
+                config.savePos2();
+                break;
+
+            case 38: // up
+                config.pair[ctrl?"y2":"y1"] += config.speed;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+            case 40: // down
+                config.pair[ctrl?"y2":"y1"] -= config.speed;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+            case 37: // left
+                config.pair[ctrl?"x2":"x1"] -= config.speed;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+            case 39: // right
+                config.pair[ctrl?"x2":"x1"] += config.speed;
+                updatePair((ctrl?config.pair:config.pair));
+                break;
+
+            case 32: // space
+                config.editor.controls.enabled = !config.editor.controls.enabled;
+                break;
+            case 13: // enter
+                if (config.editor.controls.target.x !== 0) {
+                    config.editor.controls.target.setScalar(0);
+                } else {
+                    if (config.pair) {
+                        var pair = config.pair;
+                        config.editor.controls.target.set((pair.x1+pair.x2)/2, (pair.y1+pair.y2)/2, 0);
+                    }
+                }
+                break;
+            default:
+                console.log("keyCode: "+event.keyCode);
+        }
+    }, false );
+
+    toastr.options = {
+        "positionClass": "toast-bottom-left"
+    };
+
+    function updatePair(pair) {
+        pair.p1.position.set(pair.x1, pair.y1, 0);
+        pair.p2.position.set(pair.x2, pair.y2, 0);
+        pair.link.geometry.vertices[0].set(pair.x1, pair.y1, config.group1.position.z);
+        pair.link.geometry.vertices[1].set(pair.x2, pair.y2, config.group2.position.z);
+        pair.link.geometry.verticesNeedUpdate = true;
+    }
+
+    function pushPair(pair) {
+        if (pair.valid === true) {
+            config.group1.add(pair.p1);
+            config.group2.add(pair.p2);
+            config.scene.add(pair.link);
+            config.helpers.push(pair.p1);
+            config.helpers.push(pair.p2);
+            config.helpers.push(pair.link);
+            config.pair = pair;
+            app.pairs.push(pair);
+        } else {
+            toastr.warning("won't push invalid pair.");
+        }
+    }
+
+    function cleanPairs() {
+        app.pairs = [];
+        config.pair = null;
+        config.helpers.forEach(function(obj) { obj.visible = false; });
+        config.helpers = [];
+        config.helpers.push(config.cameraOrthoHelper);
+        config.helpers.push(config.axisHelper);
+    }
+
+    function setCursorStyle(style) {
+        $("body").removeClass();
+        if (style) {
+            $("body").addClass(style);
+        }
+    }
+
+    config.xy2uv = function (x,y) {
+        return new THREE.Vector2( (x/4096)+0.5, (y/2048)+0.5 );
+    };
+
+    var newTriangle = function(a,b,c) { // a,b,c
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(a.clone());
+        geometry.vertices.push(b.clone());
+        geometry.vertices.push(c.clone());
+        geometry.faces.push( new THREE.Face3(0,1,2) );
+        geometry.updatePosition = function (a,b,c) {
+            geometry.vertices[0].copy(a);
+            geometry.vertices[1].copy(b);
+            geometry.vertices[2].copy(c);
+            geometry.verticesNeedUpdate = true;
+        };
+        return geometry;
+    };
+
+    var newTriangleWithNormal = function(a,b,c) { // a,b,c
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(a.clone());
+        geometry.vertices.push(b.clone());
+        geometry.vertices.push(c.clone());
+        geometry.faces.push( new THREE.Face3(0,1,2) );
+        if (config.debug === false) {
+            geometry.vertexNormals = [ a.clone().negate().normalize(), b.clone().negate().normalize(), c.clone().negate().normalize() ];
+        }
+        return geometry;
+    };
+
+    function dualFace3OnSphere(face3, radius) {
+        var dualTriMesh = new DualTriMesh(config.nsep, radius);
+        dualTriMesh.face3 = face3;
+        var uv1  = config.xy2uv(face3.r1.x1,face3.r1.y1),
+            uv2  = config.xy2uv(face3.r2.x1,face3.r2.y1),
+            uv3  = config.xy2uv(face3.r3.x1,face3.r3.y1),
+            uv1p = config.xy2uv(face3.r1.x2,face3.r1.y2),
+            uv2p = config.xy2uv(face3.r2.x2,face3.r2.y2),
+            uv3p = config.xy2uv(face3.r3.x2,face3.r3.y2);
+        dualTriMesh.init(
+            face3.geometry.vertices[0].clone().setLength(dualTriMesh.radius),
+            face3.geometry.vertices[1].clone().setLength(dualTriMesh.radius),
+            face3.geometry.vertices[2].clone().setLength(dualTriMesh.radius),
+            {
+                uv1: { x: uv1.x, y: uv1.y },
+                uv2: { x: uv2.x, y: uv2.y },
+                uv3: { x: uv3.x, y: uv3.y },
+                material: config.plane1.material
+            },
+            {
+                uv1: { x: uv1p.x, y: uv1p.y },
+                uv2: { x: uv2p.x, y: uv2p.y },
+                uv3: { x: uv3p.x, y: uv3p.y },
+                material: config.plane2.material
+            }
+        );
+        dualTriMesh.updatePosition = function() {
+            // face3.geometry.vertices[i].clone().setLength(r[index])
+            var v = dualTriMesh.face3.geometry.vertices;
+            if (dualTriMesh.n === config.nsep) {
+                dualTriMesh.update(
+                    v[0].clone().setLength(dualTriMesh.radius),
+                    v[1].clone().setLength(dualTriMesh.radius),
+                    v[2].clone().setLength(dualTriMesh.radius)
+                );
+            } else {
+                dualTriMesh.init(
+                    v[0].clone().setLength(dualTriMesh.radius),
+                    v[1].clone().setLength(dualTriMesh.radius),
+                    v[2].clone().setLength(dualTriMesh.radius),
+                    {
+                        uv1: { x: uv1.x, y: uv1.y },
+                        uv2: { x: uv2.x, y: uv2.y },
+                        uv3: { x: uv3.x, y: uv3.y },
+                        material: config.plane1.material
+                    },
+                    {
+                        uv1: { x: uv1p.x, y: uv1p.y },
+                        uv2: { x: uv2p.x, y: uv2p.y },
+                        uv3: { x: uv3p.x, y: uv3p.y },
+                        material: config.plane2.material
+                    },
+                    config.nsep
+                );
+            }
+        };
+        dualTriMesh.updatePosition();
+        return dualTriMesh;
+    }
+
+    function triangleOnSphere(r1,r2,r3,r) {
+        var r = r || 200;
+        var v1 = pos2vec(r1.x1, r1.y1, r);
+        var v2 = pos2vec(r2.x1, r2.y1, r);
+        var v3 = pos2vec(r3.x1, r3.y1, r);
+        var geometry = newTriangle(v1, v2, v3);
+        geometry.vertexNormals = [
+            v1.clone().negate().normalize(),
+            v2.clone().negate().normalize(),
+            v3.clone().negate().normalize()
+        ];
+        geometry.normalsNeedUpdate = true;
+        var face3 = new THREE.Mesh(geometry, config.yellowFrameMaterial);
+        face3.r1 = r1;
+        face3.r2 = r2;
+        face3.r3 = r3;
+        face3.r = r;
+        face3.triangleAtT = function(t) {
+            var v1 = pos2vec(lerp(face3.r1.x1,face3.r1.x2,t),lerp(face3.r1.y1,face3.r1.y2,t),face3.r);
+            var v2 = pos2vec(lerp(face3.r2.x1,face3.r2.x2,t),lerp(face3.r2.y1,face3.r2.y2,t),face3.r);
+            var v3 = pos2vec(lerp(face3.r3.x1,face3.r3.x2,t),lerp(face3.r3.y1,face3.r3.y2,t),face3.r);
+            return new THREE.Triangle(v1,v2,v3);
+        };
+        face3.holds = [];
+        face3.lerpAndApply = function(t) {
+            var tri = face3.triangleAtT(t);
+            geometry.updatePosition(tri.a, tri.b, tri.c);
+            geometry.vertexNormals[0].copy(tri.a.clone().negate().normalize());
+            geometry.vertexNormals[1].copy(tri.b.clone().negate().normalize());
+            geometry.vertexNormals[2].copy(tri.c.clone().negate().normalize());
+            geometry.normalsNeedUpdate = true;
+            /*
+            face3.holds.forEach(function(h){
+                var index = h.index;
+                var bary = h.bary;
+                var cur = h.cur;
+                var v = new THREE.Vector3();
+                v.x = bary.x*tri.a.x + bary.y*tri.b.x + bary.z*tri.c.x;
+                v.y = bary.x*tri.a.y + bary.y*tri.b.y + bary.z*tri.c.y;
+                v.z = bary.x*tri.a.z + bary.y*tri.b.z + bary.z*tri.c.z;
+                // todo, for all points it have update that, shitshitshit
+                config.SPHERE.s0.geometry.vertices[index].copy( v.setLength(config.SPHERE.s0.geometry.parameters.radius) );
+                config.SPHERE.s1.geometry.vertices[index].copy( v.setLength(config.SPHERE.s1.geometry.parameters.radius) );
+                cur.position.copy(v.setLength(sphereRadius));
+            });
+            */
+        };
+        face3.isTriMesh = true;
+        return face3;
+    }
+
+    function newPairTriangle(r1,r2,r3) {
+
+        var group = new THREE.Group();
+        group.pairs = [ r1,r2,r3 ];
+
+        var p1 = r1.p1.position,
+            p2 = r2.p1.position,
+            p3 = r3.p1.position,
+            p4 = r1.p2.position,
+            p5 = r2.p2.position,
+            p6 = r3.p2.position;
+        var tri1, tri2, tri3;
+        if (config.debug === true) {
+            tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) );
+            tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) );
+            tri3 = newTriangle( p1.clone().setZ(201), p2.clone().setZ(201), p3.clone().setZ(201) );
+        } else {
+            tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) );
+            tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) );
+            tri3 = newTriangle( p1.clone().setZ(  0), p2.clone().setZ(  0), p3.clone().setZ(  0) );
+        }
+        var mesh1 = new THREE.Mesh(tri1, config.plane1.material),
+            mesh2 = new THREE.Mesh(tri2, config.plane2.material),
+            mesh3 = new THREE.Mesh(tri3, config.whiteFrameMaterial);
+        group.add(mesh1).add(mesh2).add(mesh3);
+
+        mesh1.geometry.faceVertexUvs[0] = [];   // set up an array
+        mesh1.geometry.faceVertexUvs[0].push([  // and push some elements
+            config.xy2uv(p1.x,p1.y),
+            config.xy2uv(p2.x,p2.y),
+            config.xy2uv(p3.x,p3.y)
+        ]);
+        mesh1.uvsNeedUpdate = true;
+
+        mesh2.geometry.faceVertexUvs[0] = [];
+        mesh2.geometry.faceVertexUvs[0].push([
+            config.xy2uv(p4.x,p4.y),
+            config.xy2uv(p5.x,p5.y),
+            config.xy2uv(p6.x,p6.y)
+        ]);
+        mesh2.uvsNeedUpdate = true;
+
+        group.tri1 = tri1;
+        group.tri2 = tri2;
+        group.tri3 = tri3;
+        group.updatePosition = function(alpha) {
+            var r1 = group.pairs[0],
+                r2 = group.pairs[1],
+                r3 = group.pairs[2];
+            var p1 = r1.p1.position.clone(), p4 = r1.p2.position,
+                p2 = r2.p1.position.clone(), p5 = r2.p2.position,
+                p3 = r3.p1.position.clone(), p6 = r3.p2.position;
+            p1.lerp(p4, alpha);
+            p2.lerp(p5, alpha);
+            p3.lerp(p6, alpha);
+            group.tri1.updatePosition(p1.clone().setZ(200),p2.clone().setZ(200),p3.clone().setZ(200));
+            group.tri2.updatePosition(p1.clone().setZ(100),p2.clone().setZ(100),p3.clone().setZ(100));
+            if (config.debug === true) {
+                group.tri3.updatePosition(p1.clone().setZ(201),p2.clone().setZ(201),p3.clone().setZ(201));
+            } else {
+                group.tri3.updatePosition(p1.clone().setZ(  0),p2.clone().setZ(  0),p3.clone().setZ(  0));
+            }
+        };
+        group.isPairTriangle = true;
+        return group;
+    }
+
+    [config.guis[0], config.guis[4]].forEach(function(gui){
+        gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen();
+        // gui.add(config, 'progress').min(0.0).max(1.0).step(0.01).listen().onChange(config.updateTriangulation).name("过渡");
+        gui.add(config, 'debug1').name("过渡");
+        // gui.add(config, 'forward' ).name("前进");
+        // gui.add(config, 'backward').name("后退");
+    });
+    config.guis[5].add(config, 'morphBtn').name("过渡");
+    config.guis[5].add(config, 'toggleSPHERE').name("切换相机");
+
+
+    function setProgress(value) {
+        config.progress = value;
+        config.updateTriangulation(value);
+        // get some screenshots
+        setTimeout(function() {
+            // config.saveEditor();
+            // config.saveSphere();
+        }, 1000);
+    }
+
+    // SPHERE
+    (function () {
+        var hs = 64, ws = 32;
+        var width  = $tabs[5].width(); // SPHERE
+        var height = $tabs[5].height();
+        var g0 = new THREE.SphereGeometry( 300, hs, ws ); g0.scale( - 1, 1, 1 );
+        var g1 = new THREE.SphereGeometry( 400, hs, ws ); g1.scale( - 1, 1, 1 );
+        var g2 = new THREE.SphereGeometry( 500, hs, ws ); g2.scale( - 1, 1, 1 );
+        var m0 = new THREE.MeshBasicMaterial({ wireframe: true, color: 0xffff00 });
+        var m1 = new THREE.MeshBasicMaterial({ map: config.plane1.material.map }); m1.transparent = true;
+        var m2 = new THREE.MeshBasicMaterial({ map: config.plane2.material.map }); m2.transparent = false;
+        var s0 = new THREE.Mesh(g0, m0); s0.visible = false;
+        var s1 = new THREE.Mesh(g1, m1);
+        var s2 = new THREE.Mesh(g2, m2);
+        var scene = new THREE.Scene();
+
+        scene.add(s0);
+        scene.add(s1);
+        scene.add(s2);
+
+        scene.add(new THREE.AxisHelper(10000));
+
+        var group = new THREE.Group(); group.visible = false;
+        scene.add(group);
+        var groupDual = new THREE.Group();
+        scene.add(groupDual);
+
+        var renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true
+        });
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(width, height);
+        $SPHERE = $(renderer.domElement);
+        $SPHERE.appendTo($tabs[5]);
+
+        var camera = new THREE.PerspectiveCamera(50, width/height, 1, 100000);
+        camera.isUserInteracting = false;
+        camera.fov = 100;
+        camera.lon = 169.89999999999998;
+        camera.lat = -3.3000000000000003;
+        camera.onPointerDownPointerX = 0;
+        camera.onPointerDownPointerY = 0;
+        camera.onPointerDownLon = 0;
+        camera.onPointerDownLat = 0;
+        camera.target = new THREE.Vector3( 0, 0, 0 );
+        var controls = new THREE.OrbitControls( camera, renderer.domElement );
+        controls.enabled = false;
+        renderer.domElement.addEventListener( 'mousedown', function(event) {
+            $SPHERE.addClass("mousedown");
+            camera.isUserInteracting = true;
+            camera.onPointerDownPointerX = event.clientX;
+            camera.onPointerDownPointerY = event.clientY;
+            camera.onPointerDownLon = camera.lon;
+            camera.onPointerDownLat = camera.lat;
+        }, false );
+        renderer.domElement.addEventListener( 'mousemove', function(event) {
+            if ( camera.isUserInteracting === true ) {
+                camera.lon = ( camera.onPointerDownPointerX - event.clientX ) * 0.1 + camera.onPointerDownLon;
+                camera.lat = ( event.clientY - camera.onPointerDownPointerY ) * 0.1 + camera.onPointerDownLat;
+            }
+        }, false );
+        renderer.domElement.addEventListener( 'mouseup', function(event) {
+            $SPHERE.removeClass("mousedown");
+            camera.isUserInteracting = false;
+        }, false );
+        var animate = function() {
+            window.requestAnimationFrame(animate);
+            TWEEN.update();
+            if (config.sphereProgress !== config.lastSphereProgress) {
+                config.morph(config.sphereProgress);
+            }
+            if (config.processedProgress !== config.progress) {
+                if (config.processedProgress < 0) {
+                    ++config.processedProgress;
+                } else {
+                    config.processedProgress = config.progress;
+                }
+            }
+            if (controls.enabled) {
+                controls.update();
+            } else {
+                if (camera.lon > 360) { camera.lon -= 360; }
+                if (camera.lon <   0) { camera.lon += 360; }
+                camera.lat = Math.max( - 85, Math.min( 85, camera.lat ) );
+                var phi = THREE.Math.degToRad( 90 - camera.lat );
+                var theta = THREE.Math.degToRad( camera.lon );
+                camera.target.x = 500 * Math.sin( phi ) * Math.cos( theta );
+                camera.target.y = 500 * Math.cos( phi );
+                camera.target.z = 500 * Math.sin( phi ) * Math.sin( theta );
+                camera.lookAt( camera.target.add(camera.position) );
+            }
+            renderer.render(scene, camera);
+        };
+        animate();
+
+        var gui = config.guis[5];
+        gui.add(config, 'saveSPHERE').name("截图");
+        gui.add(camera, 'lon').min(  0).max(360).step(1).listen().name("Lon");
+        gui.add(camera, 'lat').min(-85).max( 85).step(1).listen().name("Lat");
+        gui.add(camera, 'fov').min(config.minFov).max(config.maxFov).step(1).listen().name("Fov").onChange(function(){ camera.updateProjectionMatrix(); });
+        // gui.add(m1, 'opacity').min(0).max(1).step(0.01).listen().name("S1 Opacity");
+        // gui.add(m2, 'opacity').min(0).max(1).step(0.01).listen().name("S2 Opacity");
+        gui.add(config, 'sphereProgress').min(0).max(1).step(0.01).listen().name("变形").onChange(config.morph);
+
+        gui.add(s0, 'visible').listen().name("s0 visible");
+        gui.add(s1, 'visible').listen().name("s1 visible");
+        gui.add(s2, 'visible').listen().name("s2 visible");
+        gui.add(group, 'visible').listen().name("mesh visible");
+        gui.add(groupDual, 'visible').listen().name("face visible");
+        gui.add(config.plane1.material, 'wireframe').listen().name("material #1 wireframe");
+        gui.add(config.plane2.material, 'wireframe').listen().name("material #2 wireframe");
+        gui.add(config, 'nsep').min(2).max(25).step(1).listen().name("face #sep").onChange(function(){
+            config.lastSphereProgress = -1.0;
+        });
+
+        renderer.domElement.addEventListener( 'wheel', function(event) {
+            var fov = camera.fov + event.deltaY * 0.05;
+            camera.fov = THREE.Math.clamp(Math.round(fov), config.minFov, config.maxFov);
+            camera.updateProjectionMatrix();
+        }, false );
+        config.SPHERE = {
+            s0: s0,
+            s1: s1,
+            s2: s2,
+            group: group,
+            groupDual: groupDual,
+            camera: camera,
+            scene: scene,
+            renderer: renderer,
+            controls: controls
+        };
+    })();
+
+    // d3
+    (function(){
+    })();
+
+</script>
+</body>
+</html>

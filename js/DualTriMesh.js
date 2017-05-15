@@ -76,14 +76,27 @@ var TriMesh = function(n, radius, useVertexNormals) {
     this.uv1 = new THREE.Vector2();
     this.uv2 = new THREE.Vector2();
     this.uv3 = new THREE.Vector2();
-    this.position = function(i,j) {
-        var b = _this.bary(i,j);
+
+    function lerpDirection(v1,v2,t) {
+        var angle = v1.angleTo(v2);
+        var axis = new THREE.Vector3().crossVectors(v1, v2).normalize();
+        return v1.clone().applyAxisAngle(axis, angle*t).normalize();
+    }
+
+    this.position = function(i,j, useAxisAngle) {
         var v = new THREE.Vector3();
-        v.x = b.x*_this.a.x + b.y*_this.b.x + b.z*_this.c.x;
-        v.y = b.x*_this.a.y + b.y*_this.b.y + b.z*_this.c.y;
-        v.z = b.x*_this.a.z + b.y*_this.b.z + b.z*_this.c.z;
-        // todo: use lerp
-        return v;
+        if (useAxisAngle === true) {
+            // use lerp
+            var vl = lerpDirection(_this.a.clone().normalize(), _this.b.clone().normalize(), i/(_this.n-1));
+            var vr = lerpDirection(_this.a.clone().normalize(), _this.c.clone().normalize(), i/(_this.n-1));
+            return lerpDirection(vl, vr, j/i);
+        } else {
+            var b = _this.bary(i,j);
+            v.x = b.x*_this.a.x + b.y*_this.b.x + b.z*_this.c.x;
+            v.y = b.x*_this.a.y + b.y*_this.b.y + b.z*_this.c.y;
+            v.z = b.x*_this.a.z + b.y*_this.b.z + b.z*_this.c.z;
+            return v;
+        }
     };
     this.uv = function(i,j) {
         var b = _this.bary(i,j);
@@ -92,7 +105,7 @@ var TriMesh = function(n, radius, useVertexNormals) {
         v.y = b.x*_this.uv1.y + b.y*_this.uv2.y + b.z*_this.uv3.y;
         return v;
     };
-    this.update = function(a,b,c) {
+    this.update = function(a,b,c, useAxisAngle) {
         var n = _this.n;
         _this.a.copy(a.clone().normalize());
         _this.b.copy(b.clone().normalize());
@@ -101,7 +114,7 @@ var TriMesh = function(n, radius, useVertexNormals) {
             var mesh = _this.group.children[0];
             _this.traverse(function(i,j){
                 var index = _this.index(i,j);
-                mesh.geometry.vertices[index].copy(_this.position(i,j).setLength(_this.radius));
+                mesh.geometry.vertices[index].copy(_this.position(i,j,useAxisAngle).setLength(_this.radius));
                 if (_this.useVertexNormals) {
                     mesh.geometry.vertexNormals[index].copy(mesh.geometry.vertices[index].clone().negate().normalize());
                 }
@@ -112,7 +125,7 @@ var TriMesh = function(n, radius, useVertexNormals) {
             }
         }
     };
-    this.init = function(a,b,c, uv1, uv2, uv3, material, n, radius) {
+    this.init = function(a,b,c, uv1, uv2, uv3, material, n, radius, useAxisAngle) {
         _this.a.copy(a);
         _this.b.copy(b);
         _this.c.copy(c);
@@ -129,7 +142,7 @@ var TriMesh = function(n, radius, useVertexNormals) {
             geometry.vertexNormals = [];
         }
         _this.traverse(function(i,j){
-            var v = _this.position(i,j);
+            var v = _this.position(i,j, useAxisAngle);
             geometry.vertices.push(v.setLength(_this.radius));
             if (_this.useVertexNormals) {
                 geometry.vertexNormals.push(v.clone().negate().normalize());
@@ -209,22 +222,22 @@ var DualTriMesh = function(n, radius, useVertexNormals) {
     this.triMesh2 = new TriMesh(_this.n, _this.radius*1.2, _this.useVertexNormals);
     this.group.add(_this.triMesh1.group);
     this.group.add(_this.triMesh2.group);
-    this.update = function(a,b,c) {
-        _this.triMesh1.update(a,b,c);
-        _this.triMesh2.update(a,b,c);
+    this.update = function(a,b,c,useAxisAngle) {
+        _this.triMesh1.update(a,b,c,useAxisAngle);
+        _this.triMesh2.update(a,b,c,useAxisAngle);
     };
-    this.init = function(a,b,c, config1, config2, n, radius) {
+    this.init = function(a,b,c, config1, config2, n, radius, useAxisAngle) {
         if (n !== undefined) { _this.n = n; }
         if (radius !== undefined) { _this.radius = radius; }
         _this.triMesh1.init(
             a, b, c,
             config1.uv1, config1.uv2, config1.uv3, config1.material,
-            _this.n, _this.radius*1.0
+            _this.n, _this.radius*1.0, useAxisAngle
         );
         _this.triMesh2.init(
             a, b, c,
             config2.uv1, config2.uv2, config2.uv3, config2.material,
-            _this.n, _this.radius*1.2
+            _this.n, _this.radius*1.2, useAxisAngle
         );
     };
 };
