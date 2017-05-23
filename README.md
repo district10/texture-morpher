@@ -13,6 +13,7 @@ a tool to make morphable texture
 
 -   [动态全景图](dyna_texture.html)
 -   [动态全景球](dyna_sphere.html)
+-   示例：[一个三角形的过渡](dyna_triangle.html)
 
 ## 主界面 // Main window
 

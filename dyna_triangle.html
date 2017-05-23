@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <title>动态三角形</title>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="css/dat-gui-light-theme.css" type="text/css" />
+    <meta name="viewport" content="user-scalable=no, initial-scale=1">
+    <style>
+        body {
+            margin: 0px;
+            overflow: hidden;
+            z-index: -1000;
+        }
+        #progress {
+            position: absolute;
+            bottom: 0;
+            right: 10%;
+            width: 80%;
+        }
+    </style>
+</head>
+<body>
+<div id="container"></div>
+<input id="progress" type="range" name="progress" min="0" max="1" step="0.00001" value="0" />
+
+<script src="js/jquery.min.js"></script>
+<script src="js/Detector.js"></script>
+<script src="js/three.js"></script>
+<script src="js/d3.v4.min.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/dat.gui.min.js"></script>
+<script src="js/tween.min.js"></script>
+
+<script>
+    "use strict";
+
+    var epsilon = 0.01;
+
+    var container, camera, scene, renderer,
+        gridHelper, axisHelper,
+        mesh1, mesh2, mesh3, mesh4, group,
+        materialA = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'face.png' ), transparent: true } ),
+        materialB = materialA.clone(),
+        materialC = materialA.clone(),
+        controlsOrbit;
+
+    var Config = function() {
+        var _this = this;
+
+        this.lastProgress = -1.0;
+        this.progress = 0.0;
+        this.applyProgress = function(t) {
+            if (t === undefined) {
+                $(".close-button").click();
+                $("#progress")[0].value = _this.progress = 0.0;
+                var t1 = new TWEEN.Tween(_this)
+                    .delay(100)
+                    .to({ progress: 1.0 }, 5000)
+                    .onUpdate(function(t){
+                        group.updatePosition(t);
+                    })
+                t1.start();
+            } else {
+                if (t === _this.lastProgress) {
+                    // nothing
+                } else {
+                    _this.lastProgress = t;
+                    // todo
+                }
+            }
+        };
+    };
+    var config = new Config();
+
+    var gui = new dat.GUI(); gui.closed = true;
+    gui.add(config, 'applyProgress').name("过渡");
+
+    function newTriangle(a,b,c, material, uv1, uv2, uv3) { // a,b,c
+
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push(a.clone());
+        geometry.vertices.push(b.clone());
+        geometry.vertices.push(c.clone());
+        geometry.updatePosition = function (a,b,c) {
+            geometry.vertices[0].copy(a);
+            geometry.vertices[1].copy(b);
+            geometry.vertices[2].copy(c);
+            geometry.verticesNeedUpdate = true;
+        };
+
+        geometry.faces.push( new THREE.Face3(0,1,2) );
+        geometry.faceVertexUvs[0] = [];
+        geometry.faceVertexUvs[0].push([ uv1, uv2, uv3 ]);
+
+        var mesh = new THREE.Mesh(geometry, material);
+
+        return mesh;
+    }
+
+    window.addEventListener('load', function() {
+        var animate = function(time){
+            window.requestAnimationFrame( animate );
+            TWEEN.update();
+            controlsOrbit.update();
+            renderer.render(scene, camera);
+        };
+
+        scene = new THREE.Scene();
+        scene.scale.set(2,2,2);
+
+        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.set(0,0,50);
+        camera.lookAt(scene.position);
+
+        scene.add(axisHelper = new THREE.AxisHelper(1000));
+
+        gridHelper = new THREE.GridHelper(50, 50, 0xffff00, 0xffff00).rotateX(Math.PI/2).rotateY(-Math.PI/2)
+        gridHelper.position.setZ(-epsilon);
+        scene.add(gridHelper);
+
+        var shiftX = 5,
+            shiftY = 5;
+
+        mesh1 = newTriangle(
+                new THREE.Vector3(-2-shiftX,-2-shiftY,0),
+                new THREE.Vector3(+2-shiftX,-2-shiftY,0),
+                new THREE.Vector3(+2-shiftX,+2-shiftY,0),
+                materialA,
+                new THREE.Vector2(0.5,0.0),
+                new THREE.Vector2(1.0,0.5),
+                new THREE.Vector2(0.5,1.0)
+        );
+        mesh2 = newTriangle(
+                new THREE.Vector3(-3+shiftX,-2+shiftY,0),
+                new THREE.Vector3(+1+shiftX,+0+shiftY,0),
+                new THREE.Vector3(+0+shiftX,+2+shiftY,0),
+                materialA,
+                new THREE.Vector2(0.0,0.0), // green
+                new THREE.Vector2(0.5,0.5), // blue
+                new THREE.Vector2(0.0,1.0)  // green
+        );
+
+        group = new THREE.Group();
+
+        mesh3 = newTriangle(
+                new THREE.Vector3(0,0,0),
+                new THREE.Vector3(1,0,0),
+                new THREE.Vector3(1,1,0),
+                materialB,
+                new THREE.Vector2(0.5,0.0),
+                new THREE.Vector2(1.0,0.5),
+                new THREE.Vector2(0.5,1.0)
+        );
+        mesh3.position.set(0,0,+epsilon);
+        mesh4 = newTriangle(
+                new THREE.Vector3(0,0,0),
+                new THREE.Vector3(1,0,0),
+                new THREE.Vector3(1,1,0),
+                materialC,
+                new THREE.Vector2(0.0,0.0), // green
+                new THREE.Vector2(0.5,0.5), // blue
+                new THREE.Vector2(0.0,1.0)  // green
+        );
+        mesh4.position.set(0,0,-epsilon);
+        group.updatePosition = function(t) {
+            materialB.opacity = 1-t;
+            materialB.needsUpdate = true;
+
+            var a = new THREE.Vector3().lerpVectors( mesh1.geometry.vertices[0], mesh2.geometry.vertices[0], t );
+            var b = new THREE.Vector3().lerpVectors( mesh1.geometry.vertices[1], mesh2.geometry.vertices[1], t );
+            var c = new THREE.Vector3().lerpVectors( mesh1.geometry.vertices[2], mesh2.geometry.vertices[2], t );
+
+            mesh3.geometry.updatePosition(a,b,c);
+            mesh4.geometry.updatePosition(a,b,c);
+
+            $("#progress")[0].value = t;
+
+        };
+        group.updatePosition(0);
+        group.add( mesh3 ).add( mesh4 );
+        group.position.set(0,0,2*epsilon);
+
+        scene.add( mesh1 ).add( mesh2 );
+        scene.add( group );
+
+        container = document.getElementById( 'container' );
+        if( Detector.webgl ){
+            renderer = new THREE.WebGLRenderer({
+                antialias: true
+              , alpha: true
+            });
+        } else {
+            renderer = new THREE.CanvasRenderer();
+        }
+        renderer.setPixelRatio( window.devicePixelRatio );
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = 0;
+        container.appendChild(renderer.domElement);
+        controlsOrbit = new THREE.OrbitControls( camera, renderer.domElement );
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }, false);
+
+
+        animate();
+    }, false);
+
+    $("#progress").on("input", function(){
+        group.updatePosition(this.value);
+    });
+
+</script>
+
+</body>
+</html>

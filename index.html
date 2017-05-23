@@ -35,24 +35,27 @@
 </tbody>
 </table>
 <ul>
-    <li>Morph：<a target="_blank" href="dyna_sphere.html" >动态全景球</a>方案<br /><div id="qrcode2"></div></li>
-    <li>Morph：<a target="_blank" href="dyna_texture.html">动态全景图</a>方案<br /><div id="qrcode1"></div></li>
+    <li>Morph：<a target="_blank" href="dyna_sphere.html" >动态全景球</a>方案<br /><div id="qrcode1"></div></li>
+    <li>Morph：<a target="_blank" href="dyna_texture.html">动态全景图</a>方案<br /><div id="qrcode2"></div></li>
+    <li>Illustration：<a target="_blank" href="dyna_triangle.html">动态三角形</a>方案<br /><div id="qrcode3"></div></li>
     <li><a target="_blank" href="README.html">说明文档</a></li>
     <li><a target="_blank" href="editor.html">同名点编辑器</a> (请在电脑打开)</li>
 </ul>
 
 <hr style="color:violet;margin-top: 10em"/>
-<div id="qrcode3"></div>
+<div id="qrcode4"></div>
 
 <script src="js/jquery.min.js"></script>
 <script src="js/qrcode.min.js"></script>
 <script>
     var url = window.location.toString();
     var index = url.lastIndexOf('/');
-    var url1 = url.substring(0,index)+'/dyna_texture.html';
-    var url2 = url.substring(0,index)+'/dyna_sphere.html';
+    var url1 = url.substring(0,index)+'/dyna_sphere.html';
+    var url2 = url.substring(0,index)+'/dyna_texture.html';
+    var url3 = url.substring(0,index)+'/dyna_triangle.html';
     new QRCode(document.getElementById("qrcode1"), url1);
     new QRCode(document.getElementById("qrcode2"), url2);
-    new QRCode(document.getElementById("qrcode3"), url );
+    new QRCode(document.getElementById("qrcode3"), url3);
+    new QRCode(document.getElementById("qrcode4"), url );
 </script>
 </body>
