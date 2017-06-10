@@ -1,0 +1,6 @@
+代码阅读参考顺序：
+
+-   动态三角形 dyna_triangle.html
+-   动态全景球 dyna_sphere.html
+-   动态全景图 dyna_texture.html
+-   同名编辑器 editor.html

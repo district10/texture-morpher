@@ -35,6 +35,11 @@
 <script src="js/tween.min.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/DualTriMesh.js"></script>
+<!--说一下这几个 js 库，已经介绍过的就不说了：
+    -   utils.js 是一个工具；
+    -   DualTriMesh 是三角形，因为要 blend 两个三角形，我用了两个位置几乎重合（有一点点 offset）的三角形来
+        表现一个可以形变且改变透明度的三角形，称之为 DualTriMesh，中文就叫……双三角把……
+-->
 
 <script>
     "use strict";
@@ -49,7 +54,9 @@
     var Config = function() {
         var _this = this;
 
+        // 如果这是 true，就是压测，会不断渲染重绘，来测试本过渡方案对渲染帧率的影响
         this.benchmark = false;
+        // 这个暂时没用到
         this.useSphereTri = false;
 
         this.autorot = 0;
@@ -70,21 +77,30 @@
             t1.start();
         };
 
+        // 黄色的 material，三角格网
         this.yellowFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00, wireframe: true, side: THREE.DoubleSide, transparent: true });
 
+        // 形变过渡
         this.morph = function(t) {
             var t = t || _this.progress;
+            // 如果处理过，就不处理了
             if (t === _this.lastProgress) { return; }
+            // 记录一下，这个现在算处理过了
             _this.lastProgress = t;
+            // group 存了三角格网，里面是一个个三角形；对 group 的每个孩子，更新它们的位置，这是黄色三角格网
             group.children.forEach(function(face3){
                 if (face3.isTriMesh === true && face3.lerpAndApply !== undefined) {
+                    // 有这个函数，就用这个函数更新它的位置
                     face3.lerpAndApply(t);
                 }
             });
+            // groupDual 里面是 DualTriMesh，更新他们的位置
             groupDual.children.forEach(function(face3Dual){
                 face3Dual.dualTriMesh.updatePosition();
             });
+            // 所有的 DualTriMesh 其实用的一个纹理，所以改变它的透明度，就更新了所有的 DualTriMesh 的颜色混合
             materialA.opacity = 1-t;
+            // 这是全景球内层
             meshA.material.opacity = 1-t;
         };
 
@@ -92,19 +108,25 @@
         this.lon = 180;
         this.lat = 0;
         this.freeze = false;
+        // 切换两种查看方式
         this.toggleCamera = function() {
+            // 切换
             controlsOrbit.enabled = !controlsOrbit.enabled;
             if (controlsOrbit.enabled) {
+                // 【观察模型】：如果用控件来改变相机，那就把相机位置更新到更远的地方，并朝向场景中心
                 camera.position.copy(camera.position0);
                 controlsOrbit.target.set(0,0,0);
             } else {
+                // 【观察全景】：先保存一下当前位置，再将相机设定到场景中心
                 camera.position0.copy(camera.position);
                 camera.position.set(0,0,0);
             }
         };
 
+        // 加载同名点点对 pairs.json，里面的坐标是 x：[-2048, 2048] 左右方向，y：[-1024, 1024] 上下方向
         this.loadDefaultPairs = function() {
             $.get('pairs.json', function(data) {
+                // 加载完了，三角化
                 config.loadPairsTxt(data);
                 config.applyTriangulation();
             }, 'text');
@@ -112,7 +134,9 @@
         this.pairs = [];
         this.loadPairsTxt = function(text) {
             _this.pairs = [];
+            // 把文本转化为 JSON 对象
             var pairs = JSON.parse(text);
+            // 加载每组同名点
             pairs.forEach(function(pair){
                 var p = new Pair({
                     loading: true,
@@ -126,6 +150,7 @@
                 }
             });
         };
+        // 这个说过
         function newTriangle(a,b,c) { // a,b,c
             var geometry = new THREE.Geometry();
             geometry.vertices.push(a.clone());
@@ -140,18 +165,23 @@
             };
             return geometry;
         }
+        // r1、r2、r3 是三组同名点 reference，r 是半径
         function triangleOnSphere(r1,r2,r3,r) {
             var r = r || 200;
+            // 从三个 reference 提取 x1、y1，也就是过渡之初的位置，并将二维图像坐标转化到三维球面空间中
             var v1 = Util.pos2vec(r1.x1, r1.y1, r);
             var v2 = Util.pos2vec(r2.x1, r2.y1, r);
             var v3 = Util.pos2vec(r3.x1, r3.y1, r);
+            // 球面上的一个三角形
             var geometry = newTriangle(v1, v2, v3);
+            // 这个可以不看，因为没用到
             geometry.vertexNormals = [
                 v1.clone().negate().normalize(),
                 v2.clone().negate().normalize(),
                 v3.clone().negate().normalize()
             ];
             geometry.normalsNeedUpdate = true;
+            // 一个三角面片，纹理用的是黄色
             var face3 = new THREE.Mesh(geometry, config.yellowFrameMaterial);
             face3.r1 = r1;
             face3.r2 = r2;
@@ -165,6 +195,7 @@
                 return new THREE.Triangle(v1,v2,v3);
             };
             face3.holds = [];
+            // 从 t（过渡参数）更新这个三角面的位置
             face3.lerpAndApply = function(t) {
                 var tri = face3.triangleAtT(t);
                 geometry.updatePosition(tri.a, tri.b, tri.c);
@@ -176,6 +207,8 @@
             face3.isTriMesh = true;
             return face3;
         }
+        // 这部分就比较蛋疼了。这是我测试过后加过来的：http://tangzhixiong.com/3d/test11.html，对应论文 p42-“改进 2”
+        // 一个三角形的分割，nsep 是 #sep（number of seperation）
         this.nsep = 5;
         function dualFace3OnSphere(face3, radius) {
             var dualTriMesh = new DualTriMesh(config.nsep, radius);
@@ -203,8 +236,11 @@
                     material: materialB
                 }
             );
+            // 这个很重要，【双三角的位置更新】
             dualTriMesh.updatePosition = function() {
                 var v = dualTriMesh.face3.geometry.vertices;
+                // 如果双三角的 n（#sep）和配置中的一样（就是你没有更新 config.nsep 的话），
+                // 就直接更新坐标位置，这部分函数在 DualTriMesh.js 里面实现
                 if (dualTriMesh.n === config.nsep) {
                     dualTriMesh.update(
                         v[0].clone().setLength(dualTriMesh.radius),
@@ -213,6 +249,7 @@
                         config.useSphereTri
                     );
                 } else {
+                    // 要是你更新了 config.nsep 就重新生成内部节点
                     dualTriMesh.init(
                         v[0].clone().setLength(dualTriMesh.radius),
                         v[1].clone().setLength(dualTriMesh.radius),
@@ -238,12 +275,14 @@
             dualTriMesh.updatePosition();
             return dualTriMesh;
         }
+        // 三角化
         this.applyTriangulation = function(){
             var sites = [];
             var refs = {};
             var faces = [];
             var xmin = 100000000, xmax = 0, ymin = 10000000000, ymax = 0;
             _this.pairs.forEach(function(pair){
+                // 确定所有点的边界，xmin、xmax、ymin、ymax
                 if (pair.valid) {
                     var p = [pair.x1, pair.y1];
                     refs[Util.pos2name(p[0],p[1])] = pair;
@@ -254,8 +293,10 @@
                     if (ymax < p[1]) { ymax = p[1]; }
                 }
             });
+            // 剖分
             var voronoi = d3.voronoi().extent([[xmin-10, ymin-10], [xmax+10, ymax+10]]);
             var diagram = voronoi(sites);
+            // 得到一些三角形
             var triangles = diagram.triangles();
             var index = 0;
             group.children = [];
@@ -271,10 +312,13 @@
                 var ref2 = refs[p2n];
                 var ref3 = refs[p3n];
                 if ( ref1 !== undefined && ref2 !== undefined && ref3 !== undefined ) {
+                    // 这些三角形行程 group（黄色三角格网）
                     var face3 = triangleOnSphere(ref1,ref2,ref3, sphereRadius);
                     group.add(face3);
+                    // 以及一些 DualTriMesh 双三角
                     var face3Dual = dualFace3OnSphere(face3, sphereRadius*1.2);
                     groupDual.add(face3Dual.group);
+                    // 这两者都存到 group 里面，方便更新（只要对它们每个孩子更新就可以了）
                 }
             });
         };
@@ -282,8 +326,11 @@
     var config = new Config();
 
     var isDesktop = !navigator.userAgent.match(/(iPhone|iPod|iPad|Android|BlackBerry|BB10|mobi|tablet|opera mini|nexus 7)/i);
+    // 判断是否是移动端，移动端的话全景操作就用陀螺仪，否则用鼠标
+
     var gui = new dat.GUI(); gui.closed = true;
     window.addEventListener('load', function() {
+        // 渲染循环
         var animate = function(time){
             window.requestAnimationFrame( animate );
             TWEEN.update();
@@ -291,8 +338,10 @@
                 $("#progress")[0].value = config.progress;
             }
             if (config.benchmark) {
+                // 如果压测，就不断更新 progress（话说感觉用 time 不太对……，应当用 counter，每次用 ++counter 更新的）
                 config.progress = time%100/100;
             }
+            // 更新咯，不给 morph 传入参数，就用 config.progress
             config.morph();
             if (controlsOrbit.enabled) {
                 controlsOrbit.update();
@@ -302,6 +351,7 @@
                         controlsDeviceOri.update();
                     }
                 } else {
+                    // 如果是 PC，就通过 camera 上的 lon、lat 来设置相机的朝向
                     camera.lon += config.autorot/5;
                     if (camera.lon > 360) { camera.lon -= 360; }
                     if (camera.lon <   0) { camera.lon += 360; }
@@ -315,6 +365,7 @@
                 }
             }
             if (false && camera.position.equals({x:0,y:0,z:0})) {
+                // 我都 false 了……所以这里可以不看
                 if (config.progress === 0 || config.progress === 1) {
                     group.visible0 = group.visible; group.visible = false;
                     groupDual.visible0 = groupDual.visible; groupDual.visible = false;
@@ -325,6 +376,7 @@
             } else {
             }
             renderer.render(scene, camera);
+            // 更新帧率显示（左上角那个）
             stats.update();
         };
 
@@ -334,6 +386,7 @@
 
         camera = new THREE.PerspectiveCamera(config.fov, window.innerWidth / window.innerHeight, 1, 10000000);
         camera.isUserInteracting = false;
+        // 这是门框的位置
         camera.lon = 169.89999999999998;
         camera.lat = -3.3000000000000003;
         camera.onPointerDownPointerX = 0;
@@ -352,6 +405,7 @@
 
         var geometryA = new THREE.SphereGeometry( 500, 64, 32 ); geometryA.scale( - 1, 1, 1 );
         var geometryB = new THREE.SphereGeometry( 600, 64, 32 ); geometryB.scale( - 1, 1, 1 );
+        // 从 texture1 过渡到 texture2
         materialA = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'texture1.jpg' ), transparent: true } );
         materialB = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'texture2.jpg' ), transparent: false } );
         meshA = new THREE.Mesh( geometryA, materialA.clone() );
@@ -375,6 +429,7 @@
         renderer.domElement.style.top = 0;
         container.appendChild(renderer.domElement);
 
+        // 移动端，用陀螺仪来操作相机
         controlsDeviceOri = new THREE.DeviceOrientationControls( camera );
         controlsOrbit = new THREE.OrbitControls( camera, renderer.domElement );
         controlsOrbit.enabled = false;
@@ -387,6 +442,7 @@
             camera.updateProjectionMatrix();
             renderer.setSize( window.innerWidth, window.innerHeight );
         }, false);
+        // 这里的 mousedown、mousemove 和 mouseup 修改自 Three.js 官方，就是为了提供鼠标交互功能
         container.addEventListener( 'mousedown', function(event) {
             if (controlsOrbit.enabled) { return; }
             camera.isUserInteracting = true;
@@ -413,6 +469,7 @@
             camera.updateProjectionMatrix();
         }, false );
 
+        // 给右上角的控件添加一些控制选项
         gui.add(config, 'applyProgress').name("过渡");
         gui.add(config, 'benchmark').name("压力测试");
         gui.add(config, 'toggleCamera').name("切换相机");
@@ -457,6 +514,8 @@
     $("#progress").on("input", function(){
         config.progress = this.value;
     });
+
+    // 记得看 js/DualTriMesh.js
 
 </script>
 

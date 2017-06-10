@@ -30,12 +30,24 @@
 <script src="js/OrbitControls.js"></script>
 <script src="js/dat.gui.min.js"></script>
 <script src="js/tween.min.js"></script>
+<!--说一下这几个 js 库：（其实这个页面有些没有用到……）
+
+    -   jquery.min.js，这个不用介绍；
+    -   Detector.js，检测浏览器是否支持 WebGL，来自 Three.js；
+    -   three.js，三维渲染与相关数学工具；
+    -   d3.v4.min.js，用了里面的三角化函数（Delaunay 三角化和 Voronoi 剖分等价）；
+    -   OrbitControls.js，模型交互操作控件；
+    -   dat.gui.min.js，右上角的控件，用来修改参数，添加按钮之类的；
+    -   tween.min.js，变量过渡，可以有不同的过渡风格（我只使用了线性过渡）；
+-->
 
 <script>
     "use strict";
 
     var epsilon = 0.01;
 
+    // 这是一堆变量，重要的是 camera，scene，renderer
+    // 渲染过程其实就是用 renderer 把三维的 scene 从 camera 的视角渲染出二维图形，更新 Canvas（HTML DOM 元素）
     var container, camera, scene, renderer,
         gridHelper, axisHelper,
         mesh1, mesh2, mesh3, mesh4, group,
@@ -47,12 +59,15 @@
     var Config = function() {
         var _this = this;
 
-        this.lastProgress = -1.0;
-        this.progress = 0.0;
+        this.lastProgress = -1.0;       // 这个记录了上次已经处理了的 process 值，如果处理过了，就不必更新（多么节能……）
+        this.progress = 0.0;            // 这是当前的【过渡进度】
+        // 过渡就是不断改变 _this.progress 的值，渲染的时候发现这个值改变了，就更新视觉效果
         this.applyProgress = function(t) {
             if (t === undefined) {
                 $(".close-button").click();
+                // 重置值以及控件的位置
                 $("#progress")[0].value = _this.progress = 0.0;
+                // 在 5 秒内从 0 过渡到 1，每次刷新后，调用 group.updatePosition(当前值)
                 var t1 = new TWEEN.Tween(_this)
                     .delay(100)
                     .to({ progress: 1.0 }, 5000)
@@ -72,15 +87,21 @@
     };
     var config = new Config();
 
+    // 在页面右上角上新建一个控件，默认关闭
     var gui = new dat.GUI(); gui.closed = true;
+    // 只有这么一个按钮，因为在 js 中 config["applyProgress"] 和 config.applyProgress 等价，
+    // 所以 gui.add 传入两个参数，就能调用它了
     gui.add(config, 'applyProgress').name("过渡");
 
+    // 函数，一个三角形（是一个 mesh），a、b、c 是三个顶点坐标，
+    // meterial 是纹理，uv1、uv2、uv3 是对应的纹理坐标
     function newTriangle(a,b,c, material, uv1, uv2, uv3) { // a,b,c
 
         var geometry = new THREE.Geometry();
         geometry.vertices.push(a.clone());
         geometry.vertices.push(b.clone());
         geometry.vertices.push(c.clone());
+        // 给这个 mesh 的 geometry 提供一个更新节点的功能
         geometry.updatePosition = function (a,b,c) {
             geometry.vertices[0].copy(a);
             geometry.vertices[1].copy(b);
@@ -88,32 +109,45 @@
             geometry.verticesNeedUpdate = true;
         };
 
+        // 三个点，一个面
         geometry.faces.push( new THREE.Face3(0,1,2) );
         geometry.faceVertexUvs[0] = [];
+        // 这个面的纹理坐标
         geometry.faceVertexUvs[0].push([ uv1, uv2, uv3 ]);
 
+        // 三角形是一个 mesh
         var mesh = new THREE.Mesh(geometry, material);
 
         return mesh;
     }
 
     window.addEventListener('load', function() {
+        // 渲染循环
         var animate = function(time){
+            // 请求下一次渲染
             window.requestAnimationFrame( animate );
+            // 更新 TWEEN，这样就能更新它牵涉到的变量
             TWEEN.update();
+            // 交互控件来更新相机的位置，改变观察视角
             controlsOrbit.update();
+            // 渲染出图
             renderer.render(scene, camera);
         };
 
         scene = new THREE.Scene();
+        // 看上去有点小，给它整体放大两倍
         scene.scale.set(2,2,2);
 
+        // 透视投影相机
         camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 10000);
+        // 设置位置和姿态，position 设置位置，lookAt 设置了相机的朝向，以及相机的【上方向】（up direction）
         camera.position.set(0,0,50);
         camera.lookAt(scene.position);
 
+        // 坐标轴指示，记住：三维系统中，红色轴是 x，绿色轴是 y，蓝色轴是 z，aka xyz 对应 rgb 三种颜色
         scene.add(axisHelper = new THREE.AxisHelper(1000));
 
+        // 背景格网，position.setZ(-epsilon) 是向后移动一点点
         gridHelper = new THREE.GridHelper(50, 50, 0xffff00, 0xffff00).rotateX(Math.PI/2).rotateY(-Math.PI/2)
         gridHelper.position.setZ(-epsilon);
         scene.add(gridHelper);
@@ -121,6 +155,9 @@
         var shiftX = 5,
             shiftY = 5;
 
+        // 两个三角形，mesh1，mesh2
+        // 这个 demo 是要把 mesh1 自然过渡到 mesh2
+        // 原图是 face.png，你可以看一下
         mesh1 = newTriangle(
                 new THREE.Vector3(-2-shiftX,-2-shiftY,0),
                 new THREE.Vector3(+2-shiftX,-2-shiftY,0),
@@ -140,8 +177,8 @@
                 new THREE.Vector2(0.0,1.0)  // green
         );
 
+        // 这个 group 是过渡过程中三角形的样子
         group = new THREE.Group();
-
         mesh3 = newTriangle(
                 new THREE.Vector3(0,0,0),
                 new THREE.Vector3(1,0,0),
@@ -151,6 +188,7 @@
                 new THREE.Vector2(1.0,0.5),
                 new THREE.Vector2(0.5,1.0)
         );
+        // mesh3 放得靠前一点
         mesh3.position.set(0,0,+epsilon);
         mesh4 = newTriangle(
                 new THREE.Vector3(0,0,0),
@@ -161,11 +199,16 @@
                 new THREE.Vector2(0.5,0.5), // blue
                 new THREE.Vector2(0.0,1.0)  // green
         );
+        // mesh3 放得靠后一点
         mesh4.position.set(0,0,-epsilon);
-        group.updatePosition = function(t) {
+        // 这个 group 也可以更新，它的更新就是
+        // 改变透明度，并调用 mesh3、mesh4 的 geometry 更新他们的节点，
+        group.updatePosition = function(t) {    // 这个 t 是过渡时刻，从 0~1 对应 mesh1 和 mesh2
+            // metarialB 是 mesh3（靠前）的纹理，改变它的 opacity（不透明度），等价于前后两种纹理的线性混合：(1-t)*B+t*C
             materialB.opacity = 1-t;
             materialB.needsUpdate = true;
 
+            // lerpVectors 是两个向量的线性内插
             var a = new THREE.Vector3().lerpVectors( mesh1.geometry.vertices[0], mesh2.geometry.vertices[0], t );
             var b = new THREE.Vector3().lerpVectors( mesh1.geometry.vertices[1], mesh2.geometry.vertices[1], t );
             var c = new THREE.Vector3().lerpVectors( mesh1.geometry.vertices[2], mesh2.geometry.vertices[2], t );
@@ -173,11 +216,15 @@
             mesh3.geometry.updatePosition(a,b,c);
             mesh4.geometry.updatePosition(a,b,c);
 
+            // 更新页面控件
             $("#progress")[0].value = t;
 
         };
+        // 初始化一下位置
         group.updatePosition(0);
+        // 添加 mesh3 和 mesh4
         group.add( mesh3 ).add( mesh4 );
+        // 放得靠前一点
         group.position.set(0,0,2*epsilon);
 
         scene.add( mesh1 ).add( mesh2 );
@@ -186,16 +233,17 @@
         container = document.getElementById( 'container' );
         if( Detector.webgl ){
             renderer = new THREE.WebGLRenderer({
-                antialias: true
-              , alpha: true
+                antialias: true                             //  不解释
+              , alpha: true                                 //  支持透明度，这样鼠标右键保存出来的 png 图片就有 alpha 通道
             });
         } else {
-            renderer = new THREE.CanvasRenderer();
+            renderer = new THREE.CanvasRenderer();          //  如果 Detoctor 检测到浏览器不支持 WebGL，就 fallback 到 CanvasRenderer 来做渲染（效果和性能都差很多）
         }
         renderer.setPixelRatio( window.devicePixelRatio );
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.domElement.style.position = 'absolute';
         renderer.domElement.style.top = 0;
+        // 把 renderer 渲染结果那个“画板”（一个 Canvas）添加到页面上
         container.appendChild(renderer.domElement);
         controlsOrbit = new THREE.OrbitControls( camera, renderer.domElement );
         window.addEventListener('resize', function() {
@@ -205,9 +253,11 @@
         }, false);
 
 
+        // 开始渲染循环
         animate();
     }, false);
 
+    // 直接拖动这个控件，也能更新
     $("#progress").on("input", function(){
         group.updatePosition(this.value);
     });

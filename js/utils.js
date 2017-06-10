@@ -1,3 +1,4 @@
+// 一些工具
 var _Util = function() {
     var _this = this;
 
@@ -98,6 +99,8 @@ var _Util = function() {
         }
     }();
 
+    // 下面是一些坐标转化，uv 坐标是 u（s 轴）、v（t 轴） 两个轴，u 从左往右为 0~1，v 从下到上是 0~1；
+    // lonlat 就经纬度，lon 是 0~360，lat 是 -90~90（南极到北极）
     this.uv2lonlat = function(u, v) {
         return {
             "lon": u*360,
@@ -112,6 +115,7 @@ var _Util = function() {
         };
     };
 
+    // 经纬坐标转化到三维 xyz
     this.lonlat2xyz = function(lon, lat, radius) {
         var phi = THREE.Math.degToRad(90 - lat);
         var theta = THREE.Math.degToRad(lon);
@@ -122,7 +126,7 @@ var _Util = function() {
         };
     };
 
-
+    // rtp 是 rho，theta，phi，三个角度
     this.xyz2rtp = function(x, y, z) {
         var r = Math.sqrt( x*x + y*y + z*z );
         return {
@@ -163,6 +167,7 @@ var _Util = function() {
         );
     };
 
+    // 重心坐标转化到笛卡尔
     this.barycentric2cartesian = function(bc,r1,r2,r3) {
         var a1 = bc.x, a2 = bc.y, a3 = 1-a1-a2;
         return new THREE.Vector2(
@@ -171,6 +176,7 @@ var _Util = function() {
         );
     };
 
+    // 笛卡尔到重心坐标，对应论文 p21 页的公式
     this.cartesian2barycentric = function(car,r1,r2,r3) {
         var x1 = r1.x, y1 = r1.y,
             x2 = r2.x, y2 = r2.y,
@@ -194,6 +200,7 @@ var _Util = function() {
         };
     };
 
+    // 两个坐标转化到字符串，方便 hash
     this.pos2name = function(x, y) {
         return x.toFixed(0)+"-"+y.toFixed(0);
     };

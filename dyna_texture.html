@@ -54,9 +54,11 @@
         return geometry;
     }
 
+    // 这个渲染器用来得到【纹理帧】
     var _renderer = new THREE.WebGLRenderer({ antialias: true });
     _renderer.setSize(4096, 2048);
 
+    // 正射相机用于采样得到【纹理帧】
     var orthCamera = new THREE.OrthographicCamera(-2048,2048,1024,-1024,1,5000); // left, right, top, bottom, near, far
     orthCamera.position.set(0,0,3000);
     orthCamera.lookAt(new THREE.Vector3(0,0,0));
@@ -65,20 +67,25 @@
     var materialA = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'texture1.jpg' ), side: THREE.DoubleSide, transparent: true } );
     var materialB = new THREE.MeshBasicMaterial( { map: new THREE.TextureLoader().load( 'texture2.jpg' ), side: THREE.DoubleSide, transparent: false } );
 
+    // 一组三角形，通过三个同名点 renference r1、r2、r3 来控制三角形的位移和变形
     function newPairTriangle(r1,r2,r3) {
 
         var group = new THREE.Group();
+        // 把 renference 保存起来
         group.pairs = [ r1,r2,r3 ];
 
+        // p{1~3} 是初始位置，p{4~6} 是目标位置
         var p1 = new THREE.Vector3(r1.x1,r1.y1,0),
             p2 = new THREE.Vector3(r2.x1,r2.y1,0),
             p3 = new THREE.Vector3(r3.x1,r3.y1,0),
             p4 = new THREE.Vector3(r1.x2,r1.y2,0),
             p5 = new THREE.Vector3(r2.x2,r2.y2,0),
             p6 = new THREE.Vector3(r3.x2,r3.y2,0);
+        // 用初始位置初始三个三角形 tri1、tri2、tri3
         var tri1 = newTriangle( p1.clone().setZ(200), p2.clone().setZ(200), p3.clone().setZ(200) ),
             tri2 = newTriangle( p1.clone().setZ(100), p2.clone().setZ(100), p3.clone().setZ(100) ),
             tri3 = newTriangle( p1.clone().setZ(300), p2.clone().setZ(300), p3.clone().setZ(300) );
+        // tri1 应用当前全景纹理，tri2 应用下一站全景纹理，tri3 应用白色线框
         var mesh1 = new THREE.Mesh(tri1, materialA),
             mesh2 = new THREE.Mesh(tri2, materialB),
             mesh3 = new THREE.Mesh(tri3, config.whiteFrameMaterial);
@@ -106,6 +113,7 @@
         group.tri1 = tri1; group.mesh1 = mesh1;
         group.tri2 = tri2; group.mesh2 = mesh2;
         group.tri3 = tri3; group.mesh3 = mesh3;
+        // 更新位置
         group.updatePosition = function(alpha) {
             var r1 = group.pairs[0],
                 r2 = group.pairs[1],
@@ -113,9 +121,11 @@
             var p1 = new THREE.Vector3(r1.x1,r1.y1,0), p4 = new THREE.Vector3(r1.x2,r1.y2,0),
                 p2 = new THREE.Vector3(r2.x1,r2.y1,0), p5 = new THREE.Vector3(r2.x2,r2.y2,0),
                 p3 = new THREE.Vector3(r3.x1,r3.y1,0), p6 = new THREE.Vector3(r3.x2,r3.y2,0);
+            // 线性内插
             p1.lerp(p4, alpha);
             p2.lerp(p5, alpha);
             p3.lerp(p6, alpha);
+            // 分别更新三角形
             group.tri1.updatePosition(p1.clone().setZ(200),p2.clone().setZ(200),p3.clone().setZ(200));
             group.tri2.updatePosition(p1.clone().setZ(100),p2.clone().setZ(100),p3.clone().setZ(100));
             group.tri3.updatePosition(p1.clone().setZ(300),p2.clone().setZ(300),p3.clone().setZ(300));
@@ -142,6 +152,7 @@
 
         this.whiteFrameMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, side: THREE.DoubleSide, transparent: true });
 
+        // 压测
         this.benchmark = false;
 
         this.lastProgress = -1.0;
@@ -160,19 +171,22 @@
             t1.start();
         };
 
+        // 变形
         this.morph = function(t) {
             var t = t || _this.progress;
             if (t === _this.lastProgress) { return; }
             _this.lastProgress = t;
+            // 更新三角形组（有很多三角形组，每个三角形组由三个三角形，分别应用了当前纹理、下一站纹理，以及线框纹理）
             group.children.forEach(function(tri){
                 if (tri.isPairTriangle === true) {
                     tri.updatePosition(t);
                 }
             });
-            // render a canvas
+            // render a canvas，渲染【纹理帧】
             materialA.opacity = 1-t;
-            texture.needsUpdate = true;
             _renderer.render(scene, orthCamera);
+            // 渲染后，_renderer.domElement 就更新了，现在提醒一下 texture
+            texture.needsUpdate = true;
         };
 
         this.fov = 60;
@@ -197,6 +211,7 @@
             }, 'text');
         };
         this.pairs = [];
+        // 这个说过了
         this.loadPairsTxt = function(text) {
             _this.pairs = [];
             var pairs = JSON.parse(text);
@@ -213,6 +228,7 @@
                 }
             });
         };
+        // 这个说过了
         this.applyTriangulation = function(){
             var sites = [];
             var refs = {};
@@ -317,9 +333,11 @@
         config.plane1 = plane1;
         config.plane2 = plane2;
 
+        // 注意这个纹理，是从 _renderer 的 domElement 而来
         texture = new THREE.Texture( _renderer.domElement, THREE.UVMapping, THREE.RepeatWrapping, THREE.RepeatWrapping );
         texture.needsUpdate = true;
         geometry = new THREE.SphereGeometry( 500, 64, 32 ); geometry.scale( - 1, 1, 1 );
+        // 全景球上用的就是这个纹理
         material = new THREE.MeshBasicMaterial( { map: texture, side: THREE.DoubleSide } ),
         mesh = new THREE.Mesh( geometry, material );
         scene.add( mesh );
